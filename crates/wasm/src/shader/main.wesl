@@ -3,17 +3,12 @@
 // tubes whose physical radius comes from the camera uniform. Tube ends that
 // border a move get a domed cap that stops exactly at the endpoint, so separate
 // moves read as separate rods.
-//
-// This is the root module: it defines the shared uniforms and the pipeline
-// entry points. The tube and cap vertex geometry lives in `package::tube` and
-// `package::cap`.
 
 import package::contract::{
     uniforms,
     CapInput,
     LineOutput,
     TubeOutput,
-    Uniforms,
     VertexInput,
 };
 import package::cap::cap_vertex;

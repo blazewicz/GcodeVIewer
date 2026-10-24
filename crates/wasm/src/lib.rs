@@ -16,6 +16,8 @@ mod visibility;
 
 #[cfg(target_arch = "wasm32")]
 mod renderer;
+#[cfg(target_arch = "wasm32")]
+mod shader_contract;
 
 #[cfg(target_arch = "wasm32")]
 pub use renderer::{PathStats, Renderer};

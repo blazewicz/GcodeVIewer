@@ -8,13 +8,14 @@
 //! pointer and resize events through the camera methods, which keeps the
 //! renderer independent of the page's event model.
 
-use bytemuck::{Pod, Zeroable};
+use bytemuck::Pod;
 use gcode_viewer::MotionRecord;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 use wgpu::util::DeviceExt;
 
 use crate::camera::Camera;
+use crate::shader_contract::{CapInstance, Instance, Uniforms};
 use crate::tessellate;
 use crate::tube;
 use crate::visibility::KindMask;
@@ -32,153 +33,6 @@ const BACKGROUND: wgpu::Color = wgpu::Color {
     b: 0.980,
     a: 1.0,
 };
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct Uniforms {
-    view_proj: [f32; 16],
-    viewport: [f32; 2],
-    line_width: f32,
-    /// Moves whose highest Z exceeds this are hidden whole.
-    z_max: f32,
-    kind_mask: u32,
-    /// 0 colours segments by move kind, 1 by feedrate.
-    color_mode: u32,
-    /// Feedrates mapped onto the ends of the colour scale, in mm/min.
-    feed_min: f32,
-    feed_max: f32,
-    /// Direction from the scene toward the eye; shades tube cross-sections.
-    light_dir: [f32; 3],
-    /// Radius of an extruding move in millimetres.
-    extrusion_radius: f32,
-}
-
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct Instance {
-    start: [f32; 3],
-    end: [f32; 3],
-    kind: u32,
-    /// Bit 0: cap the start; bit 1: cap the end. Only tubes read these.
-    flags: u32,
-    /// Active feedrate in mm/min, or `tessellate::NO_FEED` when unknown.
-    feed: f32,
-    /// Highest Z of the whole move; the shader hides moves above the Z limit
-    /// as a unit.
-    move_z_max: f32,
-}
-
-impl Instance {
-    const ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![
-        0 => Float32x3,
-        1 => Float32x3,
-        2 => Uint32,
-        3 => Uint32,
-        4 => Float32,
-        5 => Float32,
-    ];
-
-    fn from_segment(segment: tessellate::Segment) -> Self {
-        Self {
-            start: segment.a,
-            end: segment.b,
-            kind: segment.kind as u32,
-            flags: u32::from(segment.start_cap) | (u32::from(segment.end_cap) << 1),
-            feed: segment.feed.unwrap_or(tessellate::NO_FEED),
-            move_z_max: segment.move_z_max,
-        }
-    }
-
-    fn layout() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &Self::ATTRIBUTES,
-        }
-    }
-}
-
-/// One domed cap instance: the tube end at a move endpoint. The renderer
-/// cannot precompute the sphere center because it depends on the runtime
-/// radius, so the shader derives it from `tip`, `axis`, and `room`.
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct CapInstance {
-    /// The move endpoint the dome must reach.
-    tip: [f32; 3],
-    /// Unit direction from the tube into the dome.
-    axis: [f32; 3],
-    /// Longest axial extent the dome may occupy, in millimetres.
-    room: f32,
-    kind: u32,
-    /// Active feedrate in mm/min, or `tessellate::NO_FEED` when unknown.
-    feed: f32,
-    /// Highest Z of the whole move; the shader hides moves above the Z limit
-    /// as a unit.
-    move_z_max: f32,
-}
-
-impl CapInstance {
-    const ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![
-        0 => Float32x3,
-        1 => Float32x3,
-        2 => Float32,
-        3 => Uint32,
-        4 => Float32,
-        5 => Float32,
-    ];
-
-    /// The cap covering one end of a tube segment, or `None` when that end is
-    /// an interior joint of its move.
-    fn from_segment_end(segment: &tessellate::Segment, at_end: bool) -> Option<Self> {
-        let capped = if at_end {
-            segment.end_cap
-        } else {
-            segment.start_cap
-        };
-        if !capped {
-            return None;
-        }
-
-        let (tip, inner) = if at_end {
-            (segment.b, segment.a)
-        } else {
-            (segment.a, segment.b)
-        };
-        let mut axis = [tip[0] - inner[0], tip[1] - inner[1], tip[2] - inner[2]];
-        let length = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2])
-            .sqrt()
-            .max(1e-6);
-        for component in &mut axis {
-            *component /= length;
-        }
-
-        // A dome may use at most half the segment when both ends are capped,
-        // matching the inset the lateral shader applies.
-        let room = if segment.start_cap && segment.end_cap {
-            length * 0.5
-        } else {
-            length
-        };
-
-        Some(Self {
-            tip,
-            axis,
-            room,
-            kind: segment.kind as u32,
-            feed: segment.feed.unwrap_or(tessellate::NO_FEED),
-            move_z_max: segment.move_z_max,
-        })
-    }
-
-    fn layout() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &Self::ATTRIBUTES,
-        }
-    }
-}
 
 /// Summary of the last [`Renderer::load_gcode`] call.
 #[wasm_bindgen]
