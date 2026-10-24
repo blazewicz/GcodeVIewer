@@ -87,8 +87,8 @@ impl Scanner {
     /// motion is kept; with one, an unknown endpoint can never match but the
     /// other endpoint still can.
     fn record(&mut self, m: &InterpretedMotion<'_>, raw: &str, line_number: usize) {
-        let start = m.start.known_xyz();
-        let end = m.end.known_xyz();
+        let start = m.start.zip_xyz();
+        let end = m.end.zip_xyz();
 
         if self.matches(start.as_ref(), end.as_ref()) {
             self.found.push(MotionRecord {

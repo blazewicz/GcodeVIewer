@@ -7,7 +7,8 @@
 use std::f64::consts::FRAC_PI_2;
 
 use crate::Options;
-use crate::gcode::{Move, MoveKind};
+use crate::gcode::MoveKind;
+use crate::toolpath::Move;
 use crate::toolpath::Point;
 
 pub(crate) const RAW: &str = "G1 X9 Y9 E9 F1200\n";

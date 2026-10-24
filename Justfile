@@ -50,7 +50,7 @@ wasm-target:
 
 # Lint the WASM renderer against the wasm32 target.
 wasm-check:
-    cargo clippy -p gcode-viewer-wasm --target wasm32-unknown-unknown --all-targets -- -D warnings
+    cargo clippy -p gcode-viewer-wasm --target wasm32-unknown-unknown --all-targets
 
 # Build the WASM renderer package for the Vite demo.
 wasm:

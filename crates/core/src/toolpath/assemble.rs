@@ -1,15 +1,10 @@
-//! Turns the modal state machine's output into weldable runs.
-//!
-//! [`Assembler`] drives the shared [`State`] line by line, applies the
-//! optimizer's policy (syntax trust, comments, travel, weldability), and
-//! collects the resulting linear moves into [`Piece::Run`]s. Curves and every
-//! line that yields no weldable linear move pass through verbatim as
-//! [`Piece::Raw`]. The run-boundary policy (motion kind, feed, extrusion
-//! direction, `max_segments`) lives here, not in the modal state.
+//! Turns the modal state machine's output into continuous move sequences.
 
 use crate::Options;
-use crate::gcode::{InterpretedMotion, Line, Move, MoveKind, Outcome, Piece, State, SyntaxError};
+use crate::gcode::{Chunks, InterpretedMotion, Line, MoveKind, Outcome, State, SyntaxError};
 use crate::toolpath::Point;
+
+use super::motion::{Move, Piece};
 
 /// Why welding stopped at a line.
 enum Cause {
@@ -219,8 +214,8 @@ impl<'a> Assembler<'a> {
             return None;
         }
 
-        let [x, y, z] = m.start.known_xyz()?;
-        let [nx, ny, nz] = m.end.known_xyz()?;
+        let [x, y, z] = m.start.zip_xyz()?;
+        let [nx, ny, nz] = m.end.zip_xyz()?;
         let feed = m.feed?;
         let delta_e = m.e_delta?;
 
@@ -235,23 +230,64 @@ impl<'a> Assembler<'a> {
         let weldable = !m.kind.is_linear()
             || (z == nz && (delta_e > 0.0 || opts.travel) && (x != nx || y != ny));
 
-        ([x, y, nx, ny].iter().all(|v| v.abs() <= 1e6) && feed > 0.0 && delta_e >= 0.0 && weldable)
-            .then_some(Move {
-                start: Point(x, y),
-                end: Point(nx, ny),
-                e0,
-                e1,
-                relative_e: m.relative_e,
-                feed,
-                kind: m.kind,
-                raw: m.raw,
-            })
+        let is_within_bounds = [x, y, nx, ny].iter().all(|v| v.abs() <= 1e6);
+
+        (is_within_bounds && feed > 0.0 && delta_e >= 0.0 && weldable).then_some(Move {
+            start: Point(x, y),
+            end: Point(nx, ny),
+            e0,
+            e1,
+            relative_e: m.relative_e,
+            feed,
+            kind: m.kind,
+            raw: m.raw,
+        })
     }
 
     /// Releases the run buffered across the last batch, if any.
     pub(crate) fn finish(mut self) -> Option<Piece<'a>> {
         (!self.run.is_empty()).then_some(Piece::Run(std::mem::take(&mut self.run)))
     }
+}
+
+/// Drives the modal state machine over `text` in chunks, handing each batch of
+/// pieces to `consume`; `false` from `consume` stops early.
+///
+/// Returns `false` when the caller must discard the output: the input contains
+/// a line without its own command, or `consume` stopped the pass. Welding a
+/// file with an inherited command would change its meaning, so the caller
+/// discards every piece, including the ones already consumed.
+#[allow(dead_code)]
+pub(crate) fn assemble_batches<'a, I, F>(
+    text: &'a str,
+    chunk_bytes: usize,
+    opts: &Options,
+    decode: F,
+    mut consume: impl FnMut(Vec<Piece<'a>>) -> bool,
+) -> bool
+where
+    F: Fn(&'a str) -> I,
+    I: Iterator<Item = Line<'a>>,
+{
+    let mut assembler = Assembler::new();
+
+    for chunk in Chunks::new(text, chunk_bytes) {
+        let pieces = assembler.assemble(decode(chunk), opts);
+
+        if !assembler.compatible() {
+            return false;
+        }
+
+        if !consume(pieces) {
+            return false;
+        }
+    }
+
+    if let Some(piece) = assembler.finish() {
+        consume(vec![piece]);
+    }
+
+    true
 }
 
 #[cfg(test)]

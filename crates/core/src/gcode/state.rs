@@ -29,7 +29,7 @@ pub(crate) struct PartialPosition {
 
 impl PartialPosition {
     /// The XYZ coordinates, when every axis is known.
-    pub(crate) fn known_xyz(self) -> Option<[f64; 3]> {
+    pub(crate) fn zip_xyz(self) -> Option<[f64; 3]> {
         match self.xyz {
             [Some(x), Some(y), Some(z)] => Some([x, y, z]),
             _ => None,
@@ -87,9 +87,6 @@ pub(crate) enum Outcome<'a> {
 }
 
 pub(crate) struct State {
-    // TODO: Here partial position is justified because state machine
-    // starts with undefined position until absolute position is set,
-    // presumably via homing.
     position: PartialPosition,
     feed: Option<f64>,
     relative: bool,
@@ -413,7 +410,7 @@ mod tests {
         #[case] expected: Option<[f64; 3]>,
     ) {
         let position = PartialPosition { xyz, e };
-        assert_eq!(position.known_xyz(), expected);
+        assert_eq!(position.zip_xyz(), expected);
     }
 
     #[rstest]

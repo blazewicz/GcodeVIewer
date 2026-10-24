@@ -7,44 +7,6 @@ use crate::gcode::{Chunks, Line, Piece};
 
 use super::{assemble::Assembler, welder};
 
-/// Drives the modal state machine over `text` in chunks, handing each batch of
-/// pieces to `consume`; `false` from `consume` stops early.
-///
-/// Returns `false` when the caller must discard the output: the input contains
-/// a line without its own command, or `consume` stopped the pass. Welding a
-/// file with an inherited command would change its meaning, so the caller
-/// discards every piece, including the ones already consumed.
-fn assemble_batches<'a, I, F>(
-    text: &'a str,
-    chunk_bytes: usize,
-    opts: &Options,
-    decode: F,
-    mut consume: impl FnMut(Vec<Piece<'a>>) -> bool,
-) -> bool
-where
-    F: Fn(&'a str) -> I,
-    I: Iterator<Item = Line<'a>>,
-{
-    let mut assembler = Assembler::new();
-
-    for chunk in Chunks::new(text, chunk_bytes) {
-        let pieces = assembler.assemble(decode(chunk), opts);
-
-        if !assembler.compatible() {
-            return false;
-        }
-
-        if !consume(pieces) {
-            return false;
-        }
-    }
-
-    if let Some(piece) = assembler.finish() {
-        consume(vec![piece]);
-    }
-
-    true
-}
 
 fn decode_lines<'a>(text: &'a str) -> impl Iterator<Item = Line<'a>> {
     text.split_inclusive('\n').map(Line::decode)
