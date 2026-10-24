@@ -3,6 +3,13 @@
 // tubes whose physical radius comes from the camera uniform. Tube ends that
 // border a move get a domed cap that stops exactly at the endpoint, so separate
 // moves read as separate rods.
+//
+// This is the root module: it defines the shared uniforms and the pipeline
+// entry points. The tube and cap vertex geometry lives in `package::tube` and
+// `package::cap`.
+
+import package::cap::{cap_vertex, CapInput};
+import package::tube::{tube_vertex, TubeOutput};
 
 struct Uniforms {
     view_proj: mat4x4<f32>,
@@ -93,144 +100,16 @@ fn vs_line(input: VertexInput, @builtin(vertex_index) index: u32) -> LineOutput 
     return out;
 }
 
-// Tessellation of a tube: radial sides for the lateral surface, latitude bands
-// and a tip fan for each domed cap. The renderer draws `TUBE_SIDES * 6` lateral
-// vertices per segment and `CAP_RINGS * TUBE_SIDES * 6 + TUBE_SIDES * 3` per
-// cap.
-const TUBE_SIDES: u32 = 8u;
-const CAP_RINGS: u32 = 4u;
-
-struct TubeOutput {
-    @builtin(position) position: vec4<f32>,
-    @location(0) @interpolate(flat) kind: u32,
-    // Highest Z of the whole move, so the Z limit hides or shows the move as
-    // a unit instead of cutting it at the boundary.
-    @location(1) @interpolate(flat) move_z_max: f32,
-    @location(2) normal: vec3<f32>,
-    @location(3) @interpolate(flat) feed: f32,
-};
-
+// The tube and cap entry points declare the pipeline interface; the geometry
+// itself lives in `package::tube` and `package::cap`.
 @vertex
 fn vs_tube(input: VertexInput, @builtin(vertex_index) index: u32) -> TubeOutput {
-    let segment = input.end - input.start;
-    let length = max(length(segment), 1e-6);
-    let axis = segment / length;
-
-    // A domed end pulls the lateral surface back from the endpoint by the
-    // dome's depth. When both ends are capped, each dome may use at most half
-    // the segment so the two never overlap.
-    let start_capped = (input.flags & 1u) != 0u;
-    let end_capped = (input.flags & 2u) != 0u;
-    let room = select(length, length * 0.5, start_capped && end_capped);
-    let inset = min(uniforms.extrusion_radius, room);
-    let inner_start = select(input.start, input.start + inset * axis, start_capped);
-    let inner_end = select(input.end, input.end - inset * axis, end_capped);
-
-    // A perpendicular pair spanning the cross-section. The reference flips near
-    // the Z axis so the cross product never degenerates.
-    let reference = select(
-        vec3<f32>(0.0, 0.0, 1.0),
-        vec3<f32>(1.0, 0.0, 0.0),
-        abs(axis.z) > 0.999,
-    );
-    let u = normalize(cross(reference, axis));
-    let w = cross(axis, u);
-    let step = 6.28318530718 / f32(TUBE_SIDES);
-
-    // Lateral surface: two triangles per side. Corner order is
-    // (inner_start,0) (inner_start,1) (inner_end,1) (inner_start,0)
-    // (inner_end,1) (inner_end,0).
-    let side = index / 6u;
-    let corner = index % 6u;
-    let at_end = corner == 2u || corner == 4u || corner == 5u;
-    let at_second_angle = corner == 1u || corner == 2u || corner == 4u;
-    let angle = f32(side + select(0u, 1u, at_second_angle)) * step;
-
-    let center = select(inner_start, inner_end, at_end);
-    let normal = cos(angle) * u + sin(angle) * w;
-    let world = center + uniforms.extrusion_radius * normal;
-
-    var out: TubeOutput;
-    out.position = uniforms.view_proj * vec4<f32>(world, 1.0);
-    out.kind = input.kind;
-    out.move_z_max = input.move_z_max;
-    out.normal = normal;
-    out.feed = input.feed;
-    return out;
+    return tube_vertex(input, index);
 }
-
-struct CapInput {
-    // The move endpoint the dome must reach.
-    @location(0) tip: vec3<f32>,
-    // Unit direction from the tube into the dome.
-    @location(1) axis: vec3<f32>,
-    // Longest axial extent the dome may occupy, in millimetres.
-    @location(2) room: f32,
-    @location(3) kind: u32,
-    // Active feedrate in mm/min, or NO_FEED when unknown.
-    @location(4) feed: f32,
-    // Highest Z of the whole move; the Z limit hides moves whole.
-    @location(5) move_z_max: f32,
-};
 
 @vertex
 fn vs_cap(input: CapInput, @builtin(vertex_index) index: u32) -> TubeOutput {
-    let radius = uniforms.extrusion_radius;
-    let inset = min(radius, input.room);
-    let center = input.tip - inset * input.axis;
-    let max_phi = asin(clamp(inset / radius, 0.0, 1.0));
-
-    // A perpendicular pair spanning the cross-section. The reference flips near
-    // the Z axis so the cross product never degenerates.
-    let reference = select(
-        vec3<f32>(0.0, 0.0, 1.0),
-        vec3<f32>(1.0, 0.0, 0.0),
-        abs(input.axis.z) > 0.999,
-    );
-    let u = normalize(cross(reference, input.axis));
-    let w = cross(input.axis, u);
-    let step = 6.28318530718 / f32(TUBE_SIDES);
-    let bands = CAP_RINGS * TUBE_SIDES * 6u;
-
-    var normal: vec3<f32>;
-    var world: vec3<f32>;
-
-    if index < bands {
-        // Latitude bands from the equator, where surface and normal match the
-        // tube, up to `max_phi`; a full hemisphere collapses onto the tip.
-        let band = index / (TUBE_SIDES * 6u);
-        let corner = index % (TUBE_SIDES * 6u);
-        let side = corner / 6u;
-        let c = corner % 6u;
-        let at_outer = c == 2u || c == 4u || c == 5u;
-        let at_second_angle = c == 1u || c == 2u || c == 4u;
-        let phi = f32(band + select(0u, 1u, at_outer)) * (max_phi / f32(CAP_RINGS));
-        let angle = f32(side + select(0u, 1u, at_second_angle)) * step;
-        let radial = cos(angle) * u + sin(angle) * w;
-
-        normal = cos(phi) * radial + sin(phi) * input.axis;
-        world = center + radius * normal;
-    } else {
-        // Tip fan, filling the flat face of a dome truncated because the
-        // segment is shorter than the radius.
-        let fan = index - bands;
-        let triangle = fan / 3u;
-        let corner = fan % 3u;
-        let angle = (f32(triangle + corner) - 1.0) * step;
-        let radial = cos(angle) * u + sin(angle) * w;
-        let rim = cos(max_phi) * radial + sin(max_phi) * input.axis;
-
-        normal = select(rim, input.axis, corner == 0u);
-        world = select(center + radius * rim, input.tip, corner == 0u);
-    }
-
-    var out: TubeOutput;
-    out.position = uniforms.view_proj * vec4<f32>(world, 1.0);
-    out.kind = input.kind;
-    out.move_z_max = input.move_z_max;
-    out.normal = normal;
-    out.feed = input.feed;
-    return out;
+    return cap_vertex(input, index);
 }
 
 // Palette indices match tessellate::Kind: rapid, feed, arc, spline.

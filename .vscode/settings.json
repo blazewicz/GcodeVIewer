@@ -13,5 +13,6 @@
         "wesl",
         "wgpu",
         "wgsl"
-    ]
+    ],
+    "wgsl-analyzer.server.path": "cates/wasm/"
 }
