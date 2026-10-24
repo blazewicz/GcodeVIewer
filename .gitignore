@@ -1,0 +1,7 @@
+.tools/
+target/
+dist/
+*.so
+ui/pkg/
+ui/node_modules/
+ui/dist/

@@ -1,0 +1,75 @@
+name: Test
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v4
+        with:
+          just-version: '1'
+      - run: rustup toolchain install stable --profile minimal
+      - run: rustup component add clippy rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - run: just ci-lint
+
+  core:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v4
+        with:
+          just-version: '1'
+      - run: rustup toolchain install stable --profile minimal
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - run: just ci-core
+
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v4
+        with:
+          just-version: '1'
+      - run: rustup toolchain install stable --profile minimal
+      - run: rustup component add clippy
+      - run: rustup target add wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - run: just ci-wasm
+
+  ci:
+    if: always()
+    needs: [lint, core, wasm]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job to pass
+        run: |
+          for result in \
+            "${{ needs.lint.result }}" \
+            "${{ needs.core.result }}" \
+            "${{ needs.cli.result }}" \
+            "${{ needs.wasm.result }}" \
+            "${{ needs.python.result }}"; do
+            if [ "$result" != "success" ]; then
+              echo "job result: $result"
+              exit 1
+            fi
+          done

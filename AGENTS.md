@@ -1,0 +1,61 @@
+# GcodeViewer
+
+Browser-based viewer with limited editing functionality for G-code.
+
+Core built with Rust using WASM and WebGPU. UI built with TypeScript, managed with vite.
+
+Currently supported G-code flavors:
+* [Marlin Firmware](https://marlinfw.org/docs/gcode/)
+
+## Project structure
+
+```
+.github/         GitHub Actions CI config
+crates/core/     Core G-code logic, parser, state machine
+crates/wasm/     WebAssembly wgpu renderer binding
+ui/              Browser UI
+zzz_artifacts/   Local artifacts - never committed to the repo
+AGENTS.md        This file
+Cargo.toml       Rust workspace config file
+Justfile         Just commands definitions
+mise.toml        Tool versions
+README.md        User facing readme file
+```
+
+## Commands
+
+Tasks live in the `Justfile`; run `just` to list them. Prefer these over ad-hoc
+commands so local and CI runs stay in sync.
+
+```sh
+# Rust code checks
+just check        # format, lint and test Rust
+just fmt          # format Rust code
+just clippy       # lint Rust code
+just test         # run Rust tests
+
+# WASM and UI specific commands
+just wasm         # build the WASM renderer package
+just wasm-check   # lint the WASM renderer for wasm32
+just ui           # run the UI dev server
+
+# Commands used in CI runs
+just ci           # every ci-* recipe below, mirroring .github/workflows/test.yml
+just ci-lint      # format + native clippy; no Python runtime needed
+just ci-core      # core library tests
+just ci-wasm      # wasm32 clippy + renderer host tests
+```
+
+## Writing code and docs
+
+Write files as standalone artifacts without leaving references to the conversation they
+originated from. If some idea was discussed and rejected it must be omitted. Never leave
+comments like "We do not do X.", unless X is otherwise implied by the context of the
+fie. Always assume that the files you write will be viewed by someone who did not
+partake in the process of developing them.
+
+Write clean and idiomatic code in any language you use. Use modern syntax and tools,
+introduce de-factor standard 3rd party libraries freely (e.x. tokio, rayon, clap, vite).
+Test code in every layer, create integration tests on the boundaries where different
+components interact with each other. Always use linters and code formatters on generated
+code.

@@ -1,0 +1,44 @@
+[package]
+name = "gcode-viewer-wasm"
+description = "WebAssembly wgpu renderer for G-code toolpaths"
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+publish = false
+
+[lib]
+name = "gcode_viewer_wasm"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+gcode-viewer = { workspace = true }
+log = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+bytemuck = { workspace = true, features = ["derive"] }
+console_error_panic_hook = { workspace = true }
+js-sys = { workspace = true }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+web-sys = { workspace = true, features = [
+    "CssStyleDeclaration",
+    "Document",
+    "DomRect",
+    "Element",
+    "HtmlCanvasElement",
+    "Window",
+    "console",
+] }
+wgpu = { workspace = true, default-features = false, features = [
+    "std",
+    "webgl",
+    "webgpu",
+    "wgsl",
+] }
+
+[dev-dependencies]
+naga = { version = "30", features = ["wgsl-in"] }
+rstest = { workspace = true }
+
+[lints]
+workspace = true

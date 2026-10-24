@@ -1,0 +1,5 @@
+[tools]
+just = "latest"
+node = "lts"
+"aqua:rustwasm/wasm-pack" = "latest"
+

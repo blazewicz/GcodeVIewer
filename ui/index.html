@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GcodeWelder renderer</title>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <div id="zcontrol">
+      <span id="zlabel" class="muted">Z</span>
+      <input id="z" type="range" min="0" max="1" step="0.01" value="1" disabled />
+    </div>
+    <aside id="panel">
+      <h1>GcodeWelder</h1>
+      <p class="muted">wgpu toolpath preview</p>
+
+      <label class="button">
+        Open G-code
+        <input id="file" type="file" accept=".gcode,.nc,.txt" />
+      </label>
+      <button id="demo">Load demo</button>
+      <button id="fit">Fit view</button>
+
+      <div id="sliders" class="controls"></div>
+
+      <p id="stats" class="muted">Drop a G-code file onto the canvas.</p>
+
+      <div id="toggles" class="legend"></div>
+
+      <div id="feed-legend" hidden>
+        <span class="muted">Feedrate (mm/min)</span>
+        <div id="feed-gradient"></div>
+        <div class="feed-range">
+          <input id="feed-min" type="number" step="any" aria-label="Lower feedrate bound" />
+          <input id="feed-max" type="number" step="any" aria-label="Upper feedrate bound" />
+        </div>
+      </div>
+
+      <div id="kinds" class="legend"></div>
+      <p class="muted">Drag to pan, wheel to zoom, middle or ctrl/cmd+drag to orbit.</p>
+    </aside>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

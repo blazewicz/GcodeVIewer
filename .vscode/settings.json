@@ -1,0 +1,16 @@
+{
+    "editor.rulers": [88],
+    "cSpell.words": [
+        "circumcenter",
+        "Feedrate",
+        "gcode",
+        "Hotend",
+        "interp",
+        "pyclass",
+        "pyfunction",
+        "pymodule",
+        "toolpath",
+        "wgpu",
+        "wgsl"
+    ]
+}

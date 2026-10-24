@@ -1,0 +1,18 @@
+[package]
+name = "gcode-viewer"
+description = "Conservative planar Marlin G-code curve optimizer"
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+
+[dependencies]
+log = { workspace = true }
+rayon = { workspace = true }
+smallvec = { workspace = true }
+
+[dev-dependencies]
+indoc = { workspace = true }
+rstest = { workspace = true }
+
+[lints]
+workspace = true
