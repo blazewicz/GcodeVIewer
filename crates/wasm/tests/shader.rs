@@ -1,11 +1,11 @@
 //! Host-side validation of the renderer shader.
 //!
-//! WGSL errors would otherwise surface only in the browser, so the shader is
-//! parsed and validated with naga on the host.
+//! WGSL errors would otherwise surface only in the browser, so the WESL-linked
+//! output is parsed and validated with naga on the host.
 
 #[test]
 fn the_renderer_shader_parses_and_validates() {
-    let source = include_str!("../src/shader.wgsl");
+    let source = wesl_core::include_wesl!("shader");
 
     let module = naga::front::wgsl::parse_str(source).expect("shader must parse");
 

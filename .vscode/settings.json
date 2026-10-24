@@ -10,6 +10,7 @@
         "pyfunction",
         "pymodule",
         "toolpath",
+        "wesl",
         "wgpu",
         "wgsl"
     ]

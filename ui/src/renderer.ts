@@ -1,4 +1,4 @@
-import init, { Renderer } from "../pkg/gcode_welder_wasm.js";
+import init, { Renderer } from "../pkg/gcode_viewer_wasm.js";
 
 export interface LoadResult {
   moves: number;

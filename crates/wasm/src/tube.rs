@@ -2,7 +2,7 @@
 //!
 //! The tube vertex shaders decode `vertex_index` into geometry, so the draw
 //! counts in the renderer must match the shader's tessellation constants. They
-//! live together here, and a host test pins them to `shader.wgsl`.
+//! live together here, and a host test pins them to `shader.wesl`.
 
 /// Radial sides of a tube.
 pub(crate) const SIDES: u32 = 8;
@@ -20,7 +20,7 @@ mod tests {
 
     #[test]
     fn the_shader_tessellation_matches_the_draw_counts() {
-        let source = include_str!("shader.wgsl");
+        let source = include_str!("shader.wesl");
         let sides = shader_const(source, "TUBE_SIDES");
         let cap_rings = shader_const(source, "CAP_RINGS");
 
@@ -42,6 +42,6 @@ mod tests {
                     .trim_end_matches(';');
                 value.trim_end_matches('u').parse().ok()
             })
-            .unwrap_or_else(|| panic!("const {name} not found in shader.wgsl"))
+            .unwrap_or_else(|| panic!("const {name} not found in shader.wesl"))
     }
 }

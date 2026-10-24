@@ -22,6 +22,7 @@ js-sys = "0.3"
 wasm-bindgen = "0.2.129"
 wasm-bindgen-futures = "0.4"
 web-sys = "0.3"
+wesl-core = "0.1"
 wgpu = "30"
 
 [workspace.lints.clippy]

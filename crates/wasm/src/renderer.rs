@@ -336,7 +336,10 @@ impl Renderer {
         surface.configure(&device, &config);
         let depth_view = create_depth_view(&device, &config);
 
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("shader.wesl"),
+            source: wgpu::ShaderSource::Wgsl(wesl_core::include_wesl!("shader").into()),
+        });
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("camera"),

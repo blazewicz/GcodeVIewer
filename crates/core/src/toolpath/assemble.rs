@@ -133,7 +133,7 @@ impl<'a> Assembler<'a> {
         self.trusted = false;
 
         log::warn!(
-            target: "gcode_welder",
+            target: "gcode_viewer",
             "optimization stops at line {}: {cause}: {}",
             self.line_number,
             line.raw.trim_end_matches(['\n', '\r'])
@@ -155,7 +155,7 @@ impl<'a> Assembler<'a> {
             "has no command"
         };
         log::warn!(
-            target: "gcode_welder",
+            target: "gcode_viewer",
             "file cannot be optimized: line {} {cause}: {}",
             self.line_number,
             line.raw.trim_end_matches(['\n', '\r'])
