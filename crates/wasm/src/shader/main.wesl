@@ -8,44 +8,18 @@
 // entry points. The tube and cap vertex geometry lives in `package::tube` and
 // `package::cap`.
 
-import package::cap::{cap_vertex, CapInput};
+import package::contract::{
+    uniforms,
+    CapInput,
+    LineOutput,
+    TubeOutput,
+    Uniforms,
+    VertexInput,
+};
+import package::cap::cap_vertex;
 import package::color::segment_color;
-import package::line::{line_vertex, LineOutput};
-import package::tube::{tube_vertex, TubeOutput};
-
-struct Uniforms {
-    view_proj: mat4x4<f32>,
-    viewport: vec2<f32>,
-    line_width: f32,
-    // Moves whose highest Z exceeds this are hidden whole.
-    z_max: f32,
-    // Bit `kind` set means that kind is visible.
-    kind_mask: u32,
-    // 0 colours by move kind, 1 by feedrate.
-    color_mode: u32,
-    // Feedrates mapped onto the ends of the colour scale, in mm/min.
-    feed_min: f32,
-    feed_max: f32,
-    // Unit vector from the scene toward the eye, used to shade tubes.
-    light_dir: vec3<f32>,
-    // Radius of an extruding move in millimetres.
-    extrusion_radius: f32,
-};
-
-@group(0) @binding(0) var<uniform> uniforms: Uniforms;
-
-struct VertexInput {
-    @location(0) start: vec3<f32>,
-    @location(1) end: vec3<f32>,
-    @location(2) kind: u32,
-    // Bit 0: the segment starts its move and is capped there; bit 1: it ends
-    // one. Interior joints of a flattened curve carry neither.
-    @location(3) flags: u32,
-    // Active feedrate in mm/min, or NO_FEED when unknown.
-    @location(4) feed: f32,
-    // Highest Z of the whole move; the Z limit hides moves whole.
-    @location(5) move_z_max: f32,
-};
+import package::line::line_vertex;
+import package::tube::tube_vertex;
 
 @vertex
 fn vs_line(input: VertexInput, @builtin(vertex_index) index: u32) -> LineOutput {

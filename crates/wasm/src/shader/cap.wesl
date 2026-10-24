@@ -4,25 +4,11 @@
 // the segment is shorter than the radius. The renderer draws
 // `CAP_RINGS * TUBE_SIDES * 6 + TUBE_SIDES * 3` vertices per cap.
 
-import package::main::uniforms;
-import package::tube::{TUBE_SIDES, TubeOutput};
+import package::contract::{uniforms, CapInput, TubeOutput};
+import package::tube::TUBE_SIDES;
 
 // Latitude bands of a hemispherical cap, from the equator to the tip.
 const CAP_RINGS: u32 = 4u;
-
-struct CapInput {
-    // The move endpoint the dome must reach.
-    @location(0) tip: vec3<f32>,
-    // Unit direction from the tube into the dome.
-    @location(1) axis: vec3<f32>,
-    // Longest axial extent the dome may occupy, in millimetres.
-    @location(2) room: f32,
-    @location(3) kind: u32,
-    // Active feedrate in mm/min, or NO_FEED when unknown.
-    @location(4) feed: f32,
-    // Highest Z of the whole move; the Z limit hides moves whole.
-    @location(5) move_z_max: f32,
-};
 
 fn cap_vertex(input: CapInput, index: u32) -> TubeOutput {
     let radius = uniforms.extrusion_radius;
