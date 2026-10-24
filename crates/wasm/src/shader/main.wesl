@@ -9,6 +9,7 @@
 // `package::cap`.
 
 import package::cap::{cap_vertex, CapInput};
+import package::line::{line_vertex, LineOutput};
 import package::tube::{tube_vertex, TubeOutput};
 
 struct Uniforms {
@@ -45,63 +46,11 @@ struct VertexInput {
     @location(5) move_z_max: f32,
 };
 
-struct LineOutput {
-    @builtin(position) position: vec4<f32>,
-    @location(0) @interpolate(flat) kind: u32,
-    // Highest Z of the whole move, so the Z limit hides or shows the move as
-    // a unit instead of cutting it at the boundary.
-    @location(1) @interpolate(flat) move_z_max: f32,
-    @location(2) @interpolate(flat) feed: f32,
-};
-
 @vertex
 fn vs_line(input: VertexInput, @builtin(vertex_index) index: u32) -> LineOutput {
-    let clip_start = uniforms.view_proj * vec4<f32>(input.start, 1.0);
-    let clip_end = uniforms.view_proj * vec4<f32>(input.end, 1.0);
-
-    // Pixel positions relative to the viewport center.
-    let screen_start = clip_start.xy / clip_start.w * uniforms.viewport * 0.5;
-    let screen_end = clip_end.xy / clip_end.w * uniforms.viewport * 0.5;
-
-    var direction = screen_end - screen_start;
-    let length = length(direction);
-    if length < 0.0001 {
-        direction = vec2<f32>(1.0, 0.0);
-    } else {
-        direction = direction / length;
-    }
-
-    let normal = vec2<f32>(-direction.y, direction.x) * (uniforms.line_width * 0.5 + 0.5);
-
-    let corners = array<vec2<f32>, 6>(
-        vec2<f32>(-1.0, -1.0),
-        vec2<f32>(1.0, -1.0),
-        vec2<f32>(-1.0, 1.0),
-        vec2<f32>(-1.0, 1.0),
-        vec2<f32>(1.0, -1.0),
-        vec2<f32>(1.0, 1.0),
-    );
-
-    let corner = corners[index];
-    let end_side = corner.x > 0.0;
-    let base_screen = select(screen_start, screen_end, end_side);
-    let base_clip = select(clip_start, clip_end, end_side);
-    let screen = base_screen + normal * corner.y;
-
-    // Rebuild the clip position from the expanded pixel position, keeping the
-    // base endpoint's depth so the depth test still orders segments.
-    let ndc = screen / (uniforms.viewport * 0.5);
-
-    var out: LineOutput;
-    out.position = vec4<f32>(ndc * base_clip.w, base_clip.z, base_clip.w);
-    out.kind = input.kind;
-    out.move_z_max = input.move_z_max;
-    out.feed = input.feed;
-    return out;
+    return line_vertex(input, index);
 }
 
-// The tube and cap entry points declare the pipeline interface; the geometry
-// itself lives in `package::tube` and `package::cap`.
 @vertex
 fn vs_tube(input: VertexInput, @builtin(vertex_index) index: u32) -> TubeOutput {
     return tube_vertex(input, index);

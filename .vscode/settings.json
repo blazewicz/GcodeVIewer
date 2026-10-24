@@ -13,6 +13,7 @@
         "wesl",
         "wgpu",
         "wgsl"
-    ],
-    "wgsl-analyzer.server.path": "cates/wasm/"
+    ]
+    // "wgsl-analyzer.server.path": "${workdir}/crates/wasm/"
+    // "wgsl-analyzer.server.extraEnv": null
 }
