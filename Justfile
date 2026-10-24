@@ -54,9 +54,9 @@ wasm-check:
 
 # Build the WASM renderer package for the Vite demo.
 wasm:
-    wasm-pack build crates/wasm --target web --out-dir ../../browser-demo/pkg
+    wasm-pack build crates/wasm --target web --out-dir ../../ui/pkg
 
 # Build the renderer and run the Vite demo at http://localhost:5173.
 ui: wasm
-    npm --prefix browser-demo install
-    npm --prefix browser-demo run dev
+    npm --prefix ui install
+    npm --prefix ui run dev

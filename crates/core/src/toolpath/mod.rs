@@ -3,6 +3,7 @@ mod linearize;
 mod motion;
 mod point;
 
+#[allow(unused)]
 pub(crate) use assemble::assemble_batches;
 #[cfg(test)]
 pub(crate) use motion::Move;

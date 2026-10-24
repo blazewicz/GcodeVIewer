@@ -38,7 +38,7 @@ requestAnimationFrame(frame);
 ```
 
 `just wasm-check` lints the crate for the wasm32 target, and `just wasm` builds
-the package into `browser-demo/pkg` for the Vite app.
+the package into `ui/pkg` for the Vite app.
 
 ## Development
 
