@@ -6,6 +6,12 @@ edition = { workspace = true }
 rust-version = { workspace = true }
 publish = false
 
+[package.metadata.wgsl-analyzer]
+edition = "2026_pre"
+package-manager = "cargo"
+root = "./src/shader"
+include = ["src/shader/**/*.wesl"]
+
 [lib]
 name = "gcode_viewer_wasm"
 crate-type = ["cdylib", "rlib"]
@@ -38,10 +44,11 @@ wgpu = { workspace = true, default-features = false, features = [
 ] }
 
 [build-dependencies]
+naga = { workspace = true }
 wesl = "0.6"
 
 [dev-dependencies]
-naga = { version = "30", features = ["wgsl-in"] }
+naga = { workspace = true }
 rstest = { workspace = true }
 
 [lints]

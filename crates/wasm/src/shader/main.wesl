@@ -9,6 +9,7 @@
 // `package::cap`.
 
 import package::cap::{cap_vertex, CapInput};
+import package::color::segment_color;
 import package::line::{line_vertex, LineOutput};
 import package::tube::{tube_vertex, TubeOutput};
 
@@ -59,53 +60,6 @@ fn vs_tube(input: VertexInput, @builtin(vertex_index) index: u32) -> TubeOutput 
 @vertex
 fn vs_cap(input: CapInput, @builtin(vertex_index) index: u32) -> TubeOutput {
     return cap_vertex(input, index);
-}
-
-// Palette indices match tessellate::Kind: rapid, feed, arc, spline.
-const PALETTE = array<vec4<f32>, 4>(
-    vec4<f32>(0.690, 0.769, 0.839, 1.0),
-    vec4<f32>(0.227, 0.267, 0.345, 1.0),
-    vec4<f32>(0.871, 0.306, 0.220, 1.0),
-    vec4<f32>(0.141, 0.588, 0.361, 1.0),
-);
-
-// Feedrate scale: viridis, slow to fast. The stops match the demo legend, so
-// the rendered colours and the UI gradient agree.
-const FEED_0 = vec3<f32>(0.267, 0.004, 0.329);
-const FEED_1 = vec3<f32>(0.231, 0.322, 0.545);
-const FEED_2 = vec3<f32>(0.129, 0.569, 0.549);
-const FEED_3 = vec3<f32>(0.369, 0.788, 0.384);
-const FEED_4 = vec3<f32>(0.992, 0.906, 0.145);
-
-// Segments without a known feedrate; the renderer passes this sentinel.
-const NO_FEED: f32 = -1.0;
-const UNKNOWN_FEED_COLOR = vec3<f32>(0.541, 0.573, 0.620);
-
-fn feed_color(t: f32) -> vec3<f32> {
-    let x = clamp(t, 0.0, 1.0) * 4.0;
-    if x < 1.0 {
-        return mix(FEED_0, FEED_1, x);
-    }
-    if x < 2.0 {
-        return mix(FEED_1, FEED_2, x - 1.0);
-    }
-    if x < 3.0 {
-        return mix(FEED_2, FEED_3, x - 2.0);
-    }
-    return mix(FEED_3, FEED_4, x - 3.0);
-}
-
-fn segment_color(kind: u32, feed: f32) -> vec4<f32> {
-    if uniforms.color_mode == 1u {
-        if feed == NO_FEED {
-            return vec4<f32>(UNKNOWN_FEED_COLOR, 1.0);
-        }
-        // The span is floored so a collapsed range does not divide by zero;
-        // feeds outside the range clamp to the ends of the scale.
-        let span = max(uniforms.feed_max - uniforms.feed_min, 1e-6);
-        return vec4<f32>(feed_color((feed - uniforms.feed_min) / span), 1.0);
-    }
-    return PALETTE[kind];
 }
 
 fn hidden(kind: u32, move_z_max: f32) -> bool {

@@ -360,7 +360,7 @@ mod tests {
     fn the_shader_agrees_on_the_no_feed_sentinel() {
         let sentinel = wesl_core::include_wesl!("shader")
             .lines()
-            .find_map(|line| line.strip_prefix("const NO_FEED: f32 = "))
+            .find_map(|line| line.split_once("NO_FEED: f32 = ").map(|(_, value)| value))
             .and_then(|value| value.trim_end_matches(';').parse::<f32>().ok())
             .expect("compiled shader declares NO_FEED");
 
