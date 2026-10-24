@@ -1,7 +1,7 @@
 mod gcode;
 mod query;
 mod toolpath;
-mod transform;
+// mod transform;
 
 pub use gcode::{CurveKind, MoveKind};
 pub use query::{MotionRecord, motions, moves_in_box};

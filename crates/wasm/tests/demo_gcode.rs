@@ -4,7 +4,7 @@ use gcode_viewer::{MoveKind, motions};
 
 #[test]
 fn the_demo_asset_covers_every_move_kind() {
-    let source = include_str!("../../../browser-demo/public/demo.gcode");
+    let source = include_str!("../../../ui/public/demo.gcode");
 
     let records = motions(source);
 
@@ -20,7 +20,7 @@ fn the_demo_asset_covers_every_move_kind() {
 
 #[test]
 fn the_demo_curves_carry_their_offsets_and_endpoints() {
-    let source = include_str!("../../../browser-demo/public/demo.gcode");
+    let source = include_str!("../../../ui/public/demo.gcode");
 
     let curves: Vec<_> = motions(source)
         .into_iter()
