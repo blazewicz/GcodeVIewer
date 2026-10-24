@@ -358,11 +358,11 @@ mod tests {
 
     #[test]
     fn the_shader_agrees_on_the_no_feed_sentinel() {
-        let sentinel = include_str!("shader.wesl")
+        let sentinel = wesl_core::include_wesl!("shader")
             .lines()
             .find_map(|line| line.strip_prefix("const NO_FEED: f32 = "))
             .and_then(|value| value.trim_end_matches(';').parse::<f32>().ok())
-            .expect("shader declares NO_FEED");
+            .expect("compiled shader declares NO_FEED");
 
         assert_eq!(sentinel, NO_FEED);
     }

@@ -337,7 +337,7 @@ impl Renderer {
         let depth_view = create_depth_view(&device, &config);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("shader.wesl"),
+            label: Some("shader/main.wesl"),
             source: wgpu::ShaderSource::Wgsl(wesl_core::include_wesl!("shader").into()),
         });
 

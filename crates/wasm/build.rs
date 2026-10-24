@@ -1,6 +1,6 @@
 fn main() {
     let shader = wesl::Compiler::default()
-        .compile("src/shader.wesl")
+        .compile("src/shader/main.wesl")
         .inspect_err(|error| eprintln!("{error}"))
         .expect("shader compilation failed");
 
