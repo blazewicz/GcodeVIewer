@@ -9,7 +9,7 @@
 
 use std::f64::consts::{PI, TAU};
 
-use crate::gcode::{CurveKind, MoveKind};
+use crate::gcode::CurveKind;
 
 /// Upper bound on segments for one arc.
 const MAX_ARC_SEGMENTS: usize = 1024;
@@ -25,19 +25,18 @@ const MAX_ARC_SEGMENTS: usize = 1024;
 /// `tolerance` is the target chord deviation in millimetres and
 /// `spline_samples` the Bézier sample count.
 pub fn linearize_curve(
-    kind: MoveKind,
     curve: Option<CurveKind>,
     start: [f64; 3],
     end: [f64; 3],
     tolerance: f64,
     spline_samples: usize,
 ) -> Vec<[f64; 3]> {
-    match (kind, curve) {
-        (MoveKind::Arc { clockwise }, Some(CurveKind::Arc { i, j, r })) => {
+    match curve {
+        Some(CurveKind::Arc { clockwise, i, j, r }) => {
             linearize_arc(start, end, i, j, r, clockwise, tolerance)
         }
 
-        (MoveKind::Spline, Some(CurveKind::Spline { i, j, p, q })) => {
+        Some(CurveKind::Spline { i, j, p, q }) => {
             linearize_spline(start, end, i, j, p, q, spline_samples)
         }
 
@@ -195,32 +194,9 @@ mod tests {
 
     #[test]
     fn a_linear_move_is_a_single_chord() {
-        let points = linearize_curve(
-            MoveKind::Feed,
-            None,
-            [1.0, 2.0, 0.0],
-            [4.0, 6.0, 0.5],
-            0.05,
-            64,
-        );
+        let points = linearize_curve(None, [1.0, 2.0, 0.0], [4.0, 6.0, 0.5], 0.05, 64);
 
         assert_eq!(points, vec![[1.0, 2.0, 0.0], [4.0, 6.0, 0.5]]);
-    }
-
-    #[test]
-    fn a_curve_without_offsets_falls_back_to_a_chord() {
-        // An implicit arc line inherits the kind but carries no offsets, so the
-        // only shape left to draw is the straight distance between endpoints.
-        let points = linearize_curve(
-            MoveKind::Arc { clockwise: true },
-            None,
-            [0.0, 0.0, 0.0],
-            [10.0, 0.0, 0.0],
-            0.05,
-            64,
-        );
-
-        assert_eq!(points, vec![[0.0, 0.0, 0.0], [10.0, 0.0, 0.0]]);
     }
 
     #[test]
@@ -228,8 +204,8 @@ mod tests {
         // A counterclockwise quarter turn from (20, 0) to (0, 20) centered at
         // the origin: the offsets point back at the start's center.
         let points = linearize_curve(
-            MoveKind::Arc { clockwise: false },
             Some(CurveKind::Arc {
+                clockwise: false,
                 i: -20.0,
                 j: 0.0,
                 r: None,
@@ -256,8 +232,8 @@ mod tests {
     fn coincident_arc_endpoints_sweep_a_full_circle() {
         // G2/G3 with equal endpoints and center offsets is a full circle.
         let points = linearize_curve(
-            MoveKind::Arc { clockwise: false },
             Some(CurveKind::Arc {
+                clockwise: false,
                 i: 0.0,
                 j: 10.0,
                 r: None,
@@ -285,8 +261,8 @@ mod tests {
         // The quarter turn rises 1 mm; the point at the 45 degree mark must sit
         // halfway up.
         let points = linearize_curve(
-            MoveKind::Arc { clockwise: false },
             Some(CurveKind::Arc {
+                clockwise: false,
                 i: -20.0,
                 j: 0.0,
                 r: None,
@@ -317,8 +293,8 @@ mod tests {
         // the chord and bows above it; the other center would need the major
         // arc. Counterclockwise mirrors both.
         let points = linearize_curve(
-            MoveKind::Arc { clockwise },
             Some(CurveKind::Arc {
+                clockwise,
                 i: 0.0,
                 j: 0.0,
                 r: Some(8.0),
@@ -348,8 +324,8 @@ mod tests {
     #[test]
     fn a_radius_smaller_than_half_the_chord_falls_back_to_a_chord() {
         let points = linearize_curve(
-            MoveKind::Arc { clockwise: true },
             Some(CurveKind::Arc {
+                clockwise: true,
                 i: 0.0,
                 j: 0.0,
                 r: Some(4.0),
@@ -368,7 +344,6 @@ mod tests {
         // Control points symmetric about x = 5 make the midpoint land at
         // (5, 3.75) for a cubic Bézier.
         let points = linearize_curve(
-            MoveKind::Spline,
             Some(CurveKind::Spline {
                 i: 3.0,
                 j: 5.0,

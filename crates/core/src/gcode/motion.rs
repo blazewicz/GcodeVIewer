@@ -18,8 +18,18 @@ pub enum MoveKind {
 /// (`i`/`j`) and to the end (`p`/`q`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CurveKind {
-    Arc { i: f64, j: f64, r: Option<f64> },
-    Spline { i: f64, j: f64, p: f64, q: f64 },
+    Arc {
+        clockwise: bool,
+        i: f64,
+        j: f64,
+        r: Option<f64>,
+    },
+    Spline {
+        i: f64,
+        j: f64,
+        p: f64,
+        q: f64,
+    },
 }
 
 impl MoveKind {

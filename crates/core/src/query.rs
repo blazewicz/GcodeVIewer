@@ -492,9 +492,10 @@ mod tests {
         assert_eq!(
             moves[0].curve,
             Some(CurveKind::Arc {
+                clockwise: true,
                 i: 0.5,
                 j: 0.5,
-                r: None
+                r: None,
             })
         );
         assert_eq!(
@@ -520,9 +521,10 @@ mod tests {
         assert_eq!(
             moves[0].curve,
             Some(CurveKind::Arc {
+                clockwise: true,
                 i: 0.0,
                 j: 0.0,
-                r: Some(2.0)
+                r: Some(2.0),
             })
         );
     }

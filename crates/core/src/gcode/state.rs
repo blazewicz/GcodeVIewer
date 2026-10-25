@@ -294,10 +294,11 @@ impl State {
     /// command without offsets has no shape to describe, so it reports `None`.
     fn curve_params(&self, kind: MoveKind, words: &Words) -> Option<CurveKind> {
         match kind {
-            MoveKind::Arc { .. } => {
+            MoveKind::Arc { clockwise } => {
                 let (i, j, r) = (words.param(b'I'), words.param(b'J'), words.param(b'R'));
 
                 (i.is_some() || j.is_some() || r.is_some()).then(|| CurveKind::Arc {
+                    clockwise,
                     i: self.scaled(i.unwrap_or(0.0)),
                     j: self.scaled(j.unwrap_or(0.0)),
                     r: r.map(|value| self.scaled(value)),
@@ -631,11 +632,11 @@ mod tests {
     #[rstest]
     #[case::arc_center_form(
         "G2 X10 Y0 I5 J5 E1",
-        CurveKind::Arc { i: 5.0, j: 5.0, r: None }
+        CurveKind::Arc { clockwise: true, i: 5.0, j: 5.0, r: None }
     )]
     #[case::arc_radius_form(
         "G2 X10 Y0 R8 E1",
-        CurveKind::Arc { i: 0.0, j: 0.0, r: Some(8.0) }
+        CurveKind::Arc { clockwise: true, i: 0.0, j: 0.0, r: Some(8.0) }
     )]
     #[case::spline(
         "G5 X10 Y0 I5 J5 P5 Q5 E1",
@@ -665,9 +666,10 @@ mod tests {
         assert_eq!(
             arc.curve,
             Some(CurveKind::Arc {
+                clockwise: true,
                 i: 12.7,
                 j: 12.7,
-                r: None
+                r: None,
             })
         );
     }

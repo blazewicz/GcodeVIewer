@@ -111,7 +111,6 @@ fn push_record(record: &MotionRecord, out: &mut Vec<Segment>) {
     let first = out.len();
 
     let points = linearize_curve(
-        record.kind,
         record.curve,
         start,
         end,
@@ -212,7 +211,7 @@ mod tests {
     ) -> MotionRecord {
         record(
             MoveKind::Arc { clockwise },
-            Some(CurveKind::Arc { i, j, r }),
+            Some(CurveKind::Arc { clockwise, i, j, r }),
             start,
             end,
         )
