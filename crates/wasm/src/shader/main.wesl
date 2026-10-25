@@ -5,7 +5,6 @@
 // moves read as separate rods.
 
 import package::cap::cap_vertex;
-import package::color::segment_color;
 import package::contract::{uniforms, CapInput, VertexInput};
 import package::line::{line_vertex, LineOutput};
 import package::tube::{tube_vertex, TubeOutput};

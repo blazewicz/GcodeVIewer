@@ -1,6 +1,6 @@
 struct Uniforms {
     view_proj: mat4x4<f32>,
-    viewport: vec2<f32>,
+    viewport: vec2f,
     line_width: f32,
     // Moves whose highest Z exceeds this are hidden whole.
     z_max: f32,

@@ -19,20 +19,20 @@ fn line_vertex(input: VertexInput, index: u32) -> LineOutput {
     var direction = screen_end - screen_start;
     let length = length(direction);
     if length < 0.0001 {
-        direction = vec2<f32>(1.0, 0.0);
+        direction = vec2f(1.0, 0.0);
     } else {
         direction = direction / length;
     }
 
-    let normal = vec2<f32>(-direction.y, direction.x) * (uniforms.line_width * 0.5 + 0.5);
+    let normal = vec2f(-direction.y, direction.x) * (uniforms.line_width * 0.5 + 0.5);
 
-    let corners = array<vec2<f32>, 6>(
-        vec2<f32>(-1.0, -1.0),
-        vec2<f32>(1.0, -1.0),
-        vec2<f32>(-1.0, 1.0),
-        vec2<f32>(-1.0, 1.0),
-        vec2<f32>(1.0, -1.0),
-        vec2<f32>(1.0, 1.0),
+    let corners = array<vec2f, 6>(
+        vec2f(-1.0, -1.0),
+        vec2f(1.0, -1.0),
+        vec2f(-1.0, 1.0),
+        vec2f(-1.0, 1.0),
+        vec2f(1.0, -1.0),
+        vec2f(1.0, 1.0),
     );
 
     let corner = corners[index];
