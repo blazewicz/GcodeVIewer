@@ -35,7 +35,7 @@ fn fs_line(input: LineOutput) -> @location(0) vec4<f32> {
         discard;
     }
 
-    return segment_color(input.kind, input.feed);
+    return input.color;
 }
 
 @fragment
@@ -44,13 +44,11 @@ fn fs_tube(input: TubeOutput) -> @location(0) vec4<f32> {
         discard;
     }
 
-    let color = segment_color(input.kind, input.feed);
-
     // Camera-relative diffuse light: the lit side follows the view, so the
     // cross-section reads as round from every orbit angle.
     let normal = normalize(input.normal);
     let light = normalize(uniforms.light_dir);
     let shade = 0.45 + 0.55 * max(dot(normal, light), 0.0);
 
-    return vec4<f32>(color.rgb * shade, color.a);
+    return vec4<f32>(input.color.rgb * shade, input.color.a);
 }

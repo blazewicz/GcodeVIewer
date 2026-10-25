@@ -1,5 +1,6 @@
 // Line geometry for non-extruding moves.
 
+import package::color::segment_color;
 import package::contract::{uniforms, VertexInput};
 
 struct LineOutput {
@@ -8,7 +9,7 @@ struct LineOutput {
     // Highest Z of the whole move, so the Z limit hides or shows the move as
     // a unit instead of cutting it at the boundary.
     @location(1) @interpolate(flat) move_z_max: f32,
-    @location(2) @interpolate(flat) feed: f32,
+    @location(2) @interpolate(flat) color: vec4<f32>,
 };
 
 fn line_vertex(input: VertexInput, index: u32) -> LineOutput {
@@ -48,10 +49,12 @@ fn line_vertex(input: VertexInput, index: u32) -> LineOutput {
     // base endpoint's depth so the depth test still orders segments.
     let ndc = screen / (uniforms.viewport * 0.5);
 
+    let color = segment_color(input.kind, input.feed);
+
     var out: LineOutput;
     out.position = vec4<f32>(ndc * base_clip.w, base_clip.z, base_clip.w);
     out.kind = input.kind;
     out.move_z_max = input.move_z_max;
-    out.feed = input.feed;
+    out.color = color;
     return out;
 }

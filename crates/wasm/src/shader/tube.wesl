@@ -4,6 +4,7 @@
 // from the camera uniform. Capped ends are pulled back so the domes from `package::cap`
 // fit exactly.
 
+import package::color::segment_color;
 import package::contract::{uniforms, VertexInput};
 
 // Radial sides of a tube. The renderer draws `TUBE_SIDES * 6` lateral vertices
@@ -17,7 +18,7 @@ struct TubeOutput {
     // a unit instead of cutting it at the boundary.
     @location(1) @interpolate(flat) move_z_max: f32,
     @location(2) normal: vec3<f32>,
-    @location(3) @interpolate(flat) feed: f32,
+    @location(3) @interpolate(flat) color: vec4<f32>,
 };
 
 fn tube_vertex(input: VertexInput, index: u32) -> TubeOutput {
@@ -59,11 +60,13 @@ fn tube_vertex(input: VertexInput, index: u32) -> TubeOutput {
     let normal = cos(angle) * u + sin(angle) * w;
     let world = center + uniforms.extrusion_radius * normal;
 
+    let color = segment_color(input.kind, input.feed);
+
     var out: TubeOutput;
     out.position = uniforms.view_proj * vec4<f32>(world, 1.0);
     out.kind = input.kind;
     out.move_z_max = input.move_z_max;
     out.normal = normal;
-    out.feed = input.feed;
+    out.color = color;
     return out;
 }

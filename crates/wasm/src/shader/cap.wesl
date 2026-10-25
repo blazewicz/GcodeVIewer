@@ -5,6 +5,7 @@
 // when the segment is shorter than the radius. The renderer draws
 // `CAP_RINGS * TUBE_SIDES * 6 + TUBE_SIDES * 3` vertices per cap.
 
+import package::color::segment_color;
 import package::contract::{uniforms, CapInput};
 import package::tube::{TUBE_SIDES, TubeOutput};
 
@@ -61,11 +62,13 @@ fn cap_vertex(input: CapInput, index: u32) -> TubeOutput {
         world = select(center + radius * rim, input.tip, corner == 0u);
     }
 
+    let color = segment_color(input.kind, input.feed);
+
     var out: TubeOutput;
     out.position = uniforms.view_proj * vec4<f32>(world, 1.0);
     out.kind = input.kind;
     out.move_z_max = input.move_z_max;
     out.normal = normal;
-    out.feed = input.feed;
+    out.color = color;
     return out;
 }
