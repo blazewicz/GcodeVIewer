@@ -66,8 +66,6 @@ fn cap_vertex(input: CapInput, index: u32) -> TubeOutput {
 
     var out: TubeOutput;
     out.position = uniforms.view_proj * vec4f(world, 1.0);
-    out.kind = input.kind;
-    out.move_z_max = input.move_z_max;
     out.normal = normal;
     out.color = color;
     return out;

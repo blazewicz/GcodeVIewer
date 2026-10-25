@@ -5,11 +5,7 @@ import package::contract::{uniforms, VertexInput};
 
 struct LineOutput {
     @builtin(position) position: vec4f,
-    @location(0) @interpolate(flat) kind: u32,
-    // Highest Z of the whole move, so the Z limit hides or shows the move as
-    // a unit instead of cutting it at the boundary.
-    @location(1) @interpolate(flat) move_z_max: f32,
-    @location(2) @interpolate(flat) color: vec4f,
+    @location(0) @interpolate(flat) color: vec4f,
 };
 
 fn line_vertex(input: VertexInput, index: u32) -> LineOutput {
@@ -53,8 +49,6 @@ fn line_vertex(input: VertexInput, index: u32) -> LineOutput {
 
     var out: LineOutput;
     out.position = vec4f(ndc * base_clip.w, base_clip.z, base_clip.w);
-    out.kind = input.kind;
-    out.move_z_max = input.move_z_max;
     out.color = color;
     return out;
 }
