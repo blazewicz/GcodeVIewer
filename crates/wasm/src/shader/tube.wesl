@@ -12,13 +12,13 @@ import package::contract::{uniforms, VertexInput};
 const TUBE_SIDES: u32 = 8u;
 
 struct TubeOutput {
-    @builtin(position) position: vec4<f32>,
+    @builtin(position) position: vec4f,
     @location(0) @interpolate(flat) kind: u32,
     // Highest Z of the whole move, so the Z limit hides or shows the move as
     // a unit instead of cutting it at the boundary.
     @location(1) @interpolate(flat) move_z_max: f32,
-    @location(2) normal: vec3<f32>,
-    @location(3) @interpolate(flat) color: vec4<f32>,
+    @location(2) normal: vec3f,
+    @location(3) @interpolate(flat) color: vec4f,
 };
 
 fn tube_vertex(input: VertexInput, index: u32) -> TubeOutput {
@@ -39,8 +39,8 @@ fn tube_vertex(input: VertexInput, index: u32) -> TubeOutput {
     // A perpendicular pair spanning the cross-section. The reference flips near
     // the Z axis so the cross product never degenerates.
     let reference = select(
-        vec3<f32>(0.0, 0.0, 1.0),
-        vec3<f32>(1.0, 0.0, 0.0),
+        vec3f(0.0, 0.0, 1.0),
+        vec3f(1.0, 0.0, 0.0),
         abs(axis.z) > 0.999,
     );
     let u = normalize(cross(reference, axis));
@@ -63,7 +63,7 @@ fn tube_vertex(input: VertexInput, index: u32) -> TubeOutput {
     let color = segment_color(input.kind, input.feed);
 
     var out: TubeOutput;
-    out.position = uniforms.view_proj * vec4<f32>(world, 1.0);
+    out.position = uniforms.view_proj * vec4f(world, 1.0);
     out.kind = input.kind;
     out.move_z_max = input.move_z_max;
     out.normal = normal;

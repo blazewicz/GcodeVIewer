@@ -30,7 +30,7 @@ fn hidden(kind: u32, move_z_max: f32) -> bool {
 }
 
 @fragment
-fn fs_line(input: LineOutput) -> @location(0) vec4<f32> {
+fn fs_line(input: LineOutput) -> @location(0) vec4f {
     if hidden(input.kind, input.move_z_max) {
         discard;
     }
@@ -39,7 +39,7 @@ fn fs_line(input: LineOutput) -> @location(0) vec4<f32> {
 }
 
 @fragment
-fn fs_tube(input: TubeOutput) -> @location(0) vec4<f32> {
+fn fs_tube(input: TubeOutput) -> @location(0) vec4f {
     if hidden(input.kind, input.move_z_max) {
         discard;
     }
@@ -50,5 +50,5 @@ fn fs_tube(input: TubeOutput) -> @location(0) vec4<f32> {
     let light = normalize(uniforms.light_dir);
     let shade = 0.45 + 0.55 * max(dot(normal, light), 0.0);
 
-    return vec4<f32>(input.color.rgb * shade, input.color.a);
+    return vec4f(input.color.rgb * shade, input.color.a);
 }

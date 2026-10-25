@@ -21,8 +21,8 @@ fn cap_vertex(input: CapInput, index: u32) -> TubeOutput {
     // A perpendicular pair spanning the cross-section. The reference flips near
     // the Z axis so the cross product never degenerates.
     let reference = select(
-        vec3<f32>(0.0, 0.0, 1.0),
-        vec3<f32>(1.0, 0.0, 0.0),
+        vec3f(0.0, 0.0, 1.0),
+        vec3f(1.0, 0.0, 0.0),
         abs(input.axis.z) > 0.999,
     );
     let u = normalize(cross(reference, input.axis));
@@ -30,8 +30,8 @@ fn cap_vertex(input: CapInput, index: u32) -> TubeOutput {
     let step = 6.28318530718 / f32(TUBE_SIDES);
     let bands = CAP_RINGS * TUBE_SIDES * 6u;
 
-    var normal: vec3<f32>;
-    var world: vec3<f32>;
+    var normal: vec3f;
+    var world: vec3f;
 
     if index < bands {
         // Latitude bands from the equator, where surface and normal match the
@@ -65,7 +65,7 @@ fn cap_vertex(input: CapInput, index: u32) -> TubeOutput {
     let color = segment_color(input.kind, input.feed);
 
     var out: TubeOutput;
-    out.position = uniforms.view_proj * vec4<f32>(world, 1.0);
+    out.position = uniforms.view_proj * vec4f(world, 1.0);
     out.kind = input.kind;
     out.move_z_max = input.move_z_max;
     out.normal = normal;
