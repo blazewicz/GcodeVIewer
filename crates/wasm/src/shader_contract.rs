@@ -1,4 +1,4 @@
-//! The Rust-side shader contract, mirrors shaders/contract.wesl
+//! The Rust-side shader contract, mirrors shader/contract.wesl
 
 use bytemuck::{Pod, Zeroable};
 

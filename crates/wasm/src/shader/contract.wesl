@@ -45,22 +45,3 @@ struct CapInput {
     // Highest Z of the whole move; the Z limit hides moves whole.
     @location(5) move_z_max: f32,
 };
-
-struct LineOutput {
-    @builtin(position) position: vec4<f32>,
-    @location(0) @interpolate(flat) kind: u32,
-    // Highest Z of the whole move, so the Z limit hides or shows the move as
-    // a unit instead of cutting it at the boundary.
-    @location(1) @interpolate(flat) move_z_max: f32,
-    @location(2) @interpolate(flat) feed: f32,
-};
-
-struct TubeOutput {
-    @builtin(position) position: vec4<f32>,
-    @location(0) @interpolate(flat) kind: u32,
-    // Highest Z of the whole move, so the Z limit hides or shows the move as
-    // a unit instead of cutting it at the boundary.
-    @location(1) @interpolate(flat) move_z_max: f32,
-    @location(2) normal: vec3<f32>,
-    @location(3) @interpolate(flat) feed: f32,
-};

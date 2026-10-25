@@ -4,17 +4,11 @@
 // border a move get a domed cap that stops exactly at the endpoint, so separate
 // moves read as separate rods.
 
-import package::contract::{
-    uniforms,
-    CapInput,
-    LineOutput,
-    TubeOutput,
-    VertexInput,
-};
 import package::cap::cap_vertex;
 import package::color::segment_color;
-import package::line::line_vertex;
-import package::tube::tube_vertex;
+import package::contract::{uniforms, CapInput, VertexInput};
+import package::line::{line_vertex, LineOutput};
+import package::tube::{tube_vertex, TubeOutput};
 
 @vertex
 fn vs_line(input: VertexInput, @builtin(vertex_index) index: u32) -> LineOutput {
@@ -40,6 +34,7 @@ fn fs_line(input: LineOutput) -> @location(0) vec4<f32> {
     if hidden(input.kind, input.move_z_max) {
         discard;
     }
+
     return segment_color(input.kind, input.feed);
 }
 

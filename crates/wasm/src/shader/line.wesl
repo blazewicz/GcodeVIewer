@@ -1,7 +1,15 @@
 // Line geometry for non-extruding moves.
 
-import package::contract::{uniforms, VertexInput, LineOutput};
+import package::contract::{uniforms, VertexInput};
 
+struct LineOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) @interpolate(flat) kind: u32,
+    // Highest Z of the whole move, so the Z limit hides or shows the move as
+    // a unit instead of cutting it at the boundary.
+    @location(1) @interpolate(flat) move_z_max: f32,
+    @location(2) @interpolate(flat) feed: f32,
+};
 
 fn line_vertex(input: VertexInput, index: u32) -> LineOutput {
     let clip_start = uniforms.view_proj * vec4<f32>(input.start, 1.0);

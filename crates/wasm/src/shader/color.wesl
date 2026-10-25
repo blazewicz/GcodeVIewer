@@ -39,10 +39,12 @@ fn segment_color(kind: u32, feed: f32) -> vec4<f32> {
         if feed == NO_FEED {
             return vec4<f32>(UNKNOWN_FEED_COLOR, 1.0);
         }
+
         // The span is floored so a collapsed range does not divide by zero;
         // feeds outside the range clamp to the ends of the scale.
         let span = max(uniforms.feed_max - uniforms.feed_min, 1e-6);
         return vec4<f32>(feed_color((feed - uniforms.feed_min) / span), 1.0);
     }
+
     return PALETTE[kind];
 }

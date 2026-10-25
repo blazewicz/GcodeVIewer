@@ -1,12 +1,24 @@
-// Tube geometry for extruding moves. Each segment expands `vertex_index` into
-// a round tube whose physical radius comes from the camera uniform. Capped
-// ends are pulled back so the domes from `package::cap` fit exactly.
+// Tube geometry for extruding moves.
+//
+// Each segment expands `vertex_index` into a round tube whose physical radius comes
+// from the camera uniform. Capped ends are pulled back so the domes from `package::cap`
+// fit exactly.
 
-import package::contract::{uniforms, VertexInput, TubeOutput};
+import package::contract::{uniforms, VertexInput};
 
 // Radial sides of a tube. The renderer draws `TUBE_SIDES * 6` lateral vertices
 // per segment.
 const TUBE_SIDES: u32 = 8u;
+
+struct TubeOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) @interpolate(flat) kind: u32,
+    // Highest Z of the whole move, so the Z limit hides or shows the move as
+    // a unit instead of cutting it at the boundary.
+    @location(1) @interpolate(flat) move_z_max: f32,
+    @location(2) normal: vec3<f32>,
+    @location(3) @interpolate(flat) feed: f32,
+};
 
 fn tube_vertex(input: VertexInput, index: u32) -> TubeOutput {
     let segment = input.end - input.start;

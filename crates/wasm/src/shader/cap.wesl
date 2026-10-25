@@ -1,11 +1,12 @@
-// Domed caps that close the ends of a tube segment. A cap is a hemisphere
-// truncated so it reaches exactly to the move endpoint: latitude bands from the
-// equator up to the truncation, plus a tip fan that fills the flat face when
-// the segment is shorter than the radius. The renderer draws
+// Domed caps that close the ends of a tube segment.
+//
+// A cap is a hemisphere truncated so it reaches exactly to the move endpoint: latitude
+// bands from the equator up to the truncation, plus a tip fan that fills the flat face
+// when the segment is shorter than the radius. The renderer draws
 // `CAP_RINGS * TUBE_SIDES * 6 + TUBE_SIDES * 3` vertices per cap.
 
-import package::contract::{uniforms, CapInput, TubeOutput};
-import package::tube::TUBE_SIDES;
+import package::contract::{uniforms, CapInput};
+import package::tube::{TUBE_SIDES, TubeOutput};
 
 // Latitude bands of a hemispherical cap, from the equator to the tip.
 const CAP_RINGS: u32 = 4u;
