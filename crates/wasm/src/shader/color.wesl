@@ -1,11 +1,11 @@
 import package::contract::uniforms;
 
 // Palette indices match tessellate::Kind: rapid, feed, arc, spline.
-const PALETTE = array<vec4<f32>, 4>(
-    vec4<f32>(0.690, 0.769, 0.839, 1.0),
-    vec4<f32>(0.227, 0.267, 0.345, 1.0),
-    vec4<f32>(0.871, 0.306, 0.220, 1.0),
-    vec4<f32>(0.141, 0.588, 0.361, 1.0),
+const PALETTE = array<vec3<f32>, 4>(
+    vec3<f32>(0.690, 0.769, 0.839),
+    vec3<f32>(0.227, 0.267, 0.345),
+    vec3<f32>(0.871, 0.306, 0.220),
+    vec3<f32>(0.141, 0.588, 0.361),
 );
 
 // Feedrate scale: viridis, slow to fast. The stops match the demo legend, so
@@ -20,8 +20,17 @@ const FEED_4 = vec3<f32>(0.992, 0.906, 0.145);
 const NO_FEED: f32 = -1.0;
 const UNKNOWN_FEED_COLOR = vec3<f32>(0.541, 0.573, 0.620);
 
-fn feed_color(t: f32) -> vec3<f32> {
+fn feed_color(feed: f32) -> vec3<f32> {
+    if feed == NO_FEED {
+        return UNKNOWN_FEED_COLOR;
+    }
+
+    // The span is floored so a collapsed range does not divide by zero;
+    // feeds outside the range clamp to the ends of the scale.
+    let span = max(uniforms.feed_max - uniforms.feed_min, 1e-6);
+    let t = (feed - uniforms.feed_min) / span;
     let x = clamp(t, 0.0, 1.0) * 4.0;
+
     if x < 1.0 {
         return mix(FEED_0, FEED_1, x);
     }
@@ -35,16 +44,12 @@ fn feed_color(t: f32) -> vec3<f32> {
 }
 
 fn segment_color(kind: u32, feed: f32) -> vec4<f32> {
+    var color: vec3<f32>;
     if uniforms.color_mode == 1u {
-        if feed == NO_FEED {
-            return vec4<f32>(UNKNOWN_FEED_COLOR, 1.0);
-        }
-
-        // The span is floored so a collapsed range does not divide by zero;
-        // feeds outside the range clamp to the ends of the scale.
-        let span = max(uniforms.feed_max - uniforms.feed_min, 1e-6);
-        return vec4<f32>(feed_color((feed - uniforms.feed_min) / span), 1.0);
+        color = feed_color(feed);
+    } else {
+        color = PALETTE[kind];
     }
 
-    return PALETTE[kind];
+    return vec4<f32>(color, 1.0);
 }
