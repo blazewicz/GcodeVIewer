@@ -11,7 +11,7 @@ import package::contract::{uniforms, VertexInput};
 // per segment.
 const TUBE_SIDES: u32 = 8u;
 const TAU: f32 = 6.28318530718;
-const STEP: f32 = TAU / f32(TUBE_SIDES);
+const TUBE_SIDE_STEP: f32 = TAU / f32(TUBE_SIDES);
 
 struct TubeOutput {
     @builtin(position) position: vec4f,
@@ -51,7 +51,7 @@ fn tube_vertex(input: VertexInput, index: u32) -> TubeOutput {
     let corner = index % 6u;
     let at_end = corner == 2u || corner == 4u || corner == 5u;
     let at_second_angle = corner == 1u || corner == 2u || corner == 4u;
-    let angle = f32(side + select(0u, 1u, at_second_angle)) * STEP;
+    let angle = f32(side + select(0u, 1u, at_second_angle)) * TUBE_SIDE_STEP;
 
     let center = select(inner_start, inner_end, at_end);
     let normal = cos(angle) * u + sin(angle) * w;

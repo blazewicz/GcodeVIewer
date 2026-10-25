@@ -3,6 +3,15 @@
 import package::color::segment_color;
 import package::contract::{uniforms, VertexInput};
 
+const CORNERS = array<vec2f, 6>(
+    vec2f(-1.0, -1.0),
+    vec2f(1.0, -1.0),
+    vec2f(-1.0, 1.0),
+    vec2f(-1.0, 1.0),
+    vec2f(1.0, -1.0),
+    vec2f(1.0, 1.0),
+);
+
 struct LineOutput {
     @builtin(position) position: vec4f,
     @location(0) @interpolate(flat) color: vec4f,
@@ -26,16 +35,7 @@ fn line_vertex(input: VertexInput, index: u32) -> LineOutput {
 
     let normal = vec2f(-direction.y, direction.x) * (uniforms.line_width * 0.5 + 0.5);
 
-    let corners = array<vec2f, 6>(
-        vec2f(-1.0, -1.0),
-        vec2f(1.0, -1.0),
-        vec2f(-1.0, 1.0),
-        vec2f(-1.0, 1.0),
-        vec2f(1.0, -1.0),
-        vec2f(1.0, 1.0),
-    );
-
-    let corner = corners[index];
+    let corner = CORNERS[index];
     let end_side = corner.x > 0.0;
     let base_screen = select(screen_start, screen_end, end_side);
     let base_clip = select(clip_start, clip_end, end_side);

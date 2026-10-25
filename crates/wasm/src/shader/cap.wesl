@@ -7,12 +7,10 @@
 
 import package::color::segment_color;
 import package::contract::{uniforms, CapInput};
-import package::tube::{TUBE_SIDES, TubeOutput};
+import package::tube::{TUBE_SIDES, TUBE_SIDE_STEP, TubeOutput};
 
 // Latitude bands of a hemispherical cap, from the equator to the tip.
 const CAP_RINGS: u32 = 4u;
-const TAU: f32 = 6.28318530718;
-const STEP: f32 = TAU / f32(CAP_RINGS);
 
 fn cap_vertex(input: CapInput, index: u32) -> TubeOutput {
     let radius = uniforms.extrusion_radius;
@@ -44,7 +42,7 @@ fn cap_vertex(input: CapInput, index: u32) -> TubeOutput {
         let at_outer = c == 2u || c == 4u || c == 5u;
         let at_second_angle = c == 1u || c == 2u || c == 4u;
         let phi = f32(band + select(0u, 1u, at_outer)) * (max_phi / f32(CAP_RINGS));
-        let angle = f32(side + select(0u, 1u, at_second_angle)) * STEP;
+        let angle = f32(side + select(0u, 1u, at_second_angle)) * TUBE_SIDE_STEP;
         let radial = cos(angle) * u + sin(angle) * w;
 
         normal = cos(phi) * radial + sin(phi) * input.axis;
@@ -55,7 +53,7 @@ fn cap_vertex(input: CapInput, index: u32) -> TubeOutput {
         let fan = index - bands;
         let triangle = fan / 3u;
         let corner = fan % 3u;
-        let angle = (f32(triangle + corner) - 1.0) * STEP;
+        let angle = (f32(triangle + corner) - 1.0) * TUBE_SIDE_STEP;
         let radial = cos(angle) * u + sin(angle) * w;
         let rim = cos(max_phi) * radial + sin(max_phi) * input.axis;
 
