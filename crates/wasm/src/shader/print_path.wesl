@@ -1,11 +1,7 @@
-// Tube geometry for extruding moves.
-//
-// Each segment expands `vertex_index` into a round tube whose physical radius comes
-// from the camera uniform. Capped ends are pulled back so the domes from `package::cap`
-// fit exactly.
+// Geometry for paths of prints moves.
 
 import package::color::segment_color;
-import package::contract::{uniforms, VertexInput};
+import package::contract::{uniforms, PathInput};
 
 // Radial sides of a tube. The renderer draws `TUBE_SIDES * 6` lateral vertices
 // per segment.
@@ -13,13 +9,13 @@ const TUBE_SIDES: u32 = 8u;
 const TAU: f32 = 6.28318530718;
 const TUBE_SIDE_STEP: f32 = TAU / f32(TUBE_SIDES);
 
-struct TubeOutput {
+struct PrintPathOutput {
     @builtin(position) position: vec4f,
     @location(0) @interpolate(flat) color: vec4f,
     @location(1) normal: vec3f,
 };
 
-fn tube_vertex(input: VertexInput, index: u32) -> TubeOutput {
+fn print_path_vertex(input: PathInput, index: u32) -> PrintPathOutput {
     let segment = input.end - input.start;
     let length = max(length(segment), 1e-6);
     let axis = segment / length;
@@ -59,7 +55,7 @@ fn tube_vertex(input: VertexInput, index: u32) -> TubeOutput {
 
     let color = segment_color(input.kind, input.feed);
 
-    var out: TubeOutput;
+    var out: PrintPathOutput;
     out.position = uniforms.view_proj * vec4f(world, 1.0);
     out.color = color;
     out.normal = normal;

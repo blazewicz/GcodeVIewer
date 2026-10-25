@@ -1,13 +1,7 @@
-// Instanced path rendering. Each instance is one 3D segment: non-extruding
-// moves expand to a quad in screen space, while extruding moves become round
-// tubes whose physical radius comes from the camera uniform. Tube ends that
-// border a move get a domed cap that stops exactly at the endpoint, so separate
-// moves read as separate rods.
-
-import package::cap::cap_vertex;
-import package::contract::{uniforms, CapInput, VertexInput};
-import package::line::{line_vertex, LineOutput};
-import package::tube::{tube_vertex, TubeOutput};
+import package::contract::{uniforms, PathInput, PrintPathCapInput};
+import package::print_path_cap::print_path_cap_vertex;
+import package::print_path::{print_path_vertex, PrintPathOutput};
+import package::travel_path::{travel_path_vertex, TravelPathOutput};
 
 // Parked beyond the right clip plane. With x > w at every vertex the whole
 // triangle fails clipping, so it never rasterizes.
@@ -18,45 +12,45 @@ fn hidden(kind: u32, move_z_max: f32) -> bool {
 }
 
 @vertex
-fn vs_line(input: VertexInput, @builtin(vertex_index) index: u32) -> LineOutput {
+fn vs_travel_path(input: PathInput, @builtin(vertex_index) index: u32) -> TravelPathOutput {
     if hidden(input.kind, input.move_z_max) {
-        var out: LineOutput;
+        var out: TravelPathOutput;
         out.position = CULL_POSITION;
         return out;
     }
 
-    return line_vertex(input, index);
+    return travel_path_vertex(input, index);
 }
 
 @vertex
-fn vs_tube(input: VertexInput, @builtin(vertex_index) index: u32) -> TubeOutput {
+fn vs_print_path(input: PathInput, @builtin(vertex_index) index: u32) -> PrintPathOutput {
     if hidden(input.kind, input.move_z_max) {
-        var out: TubeOutput;
+        var out: PrintPathOutput;
         out.position = CULL_POSITION;
         return out;
     }
 
-    return tube_vertex(input, index);
+    return print_path_vertex(input, index);
 }
 
 @vertex
-fn vs_cap(input: CapInput, @builtin(vertex_index) index: u32) -> TubeOutput {
+fn vs_print_path_cap(input: PrintPathCapInput, @builtin(vertex_index) index: u32) -> PrintPathOutput {
     if hidden(input.kind, input.move_z_max) {
-        var out: TubeOutput;
+        var out: PrintPathOutput;
         out.position = CULL_POSITION;
         return out;
     }
 
-    return cap_vertex(input, index);
+    return print_path_cap_vertex(input, index);
 }
 
 @fragment
-fn fs_line(input: LineOutput) -> @location(0) vec4f {
+fn fs_travel_path(input: TravelPathOutput) -> @location(0) vec4f {
     return input.color;
 }
 
 @fragment
-fn fs_tube(input: TubeOutput) -> @location(0) vec4f {
+fn fs_print_path(input: PrintPathOutput) -> @location(0) vec4f {
     // Camera-relative diffuse light: the lit side follows the view, so the
     // cross-section reads as round from every orbit angle.
     let normal = normalize(input.normal);

@@ -1,18 +1,13 @@
-// Domed caps that close the ends of a tube segment.
-//
-// A cap is a hemisphere truncated so it reaches exactly to the move endpoint: latitude
-// bands from the equator up to the truncation, plus a tip fan that fills the flat face
-// when the segment is shorter than the radius. The renderer draws
-// `CAP_RINGS * TUBE_SIDES * 6 + TUBE_SIDES * 3` vertices per cap.
+// End-caps for closing print paths. 
 
 import package::color::segment_color;
-import package::contract::{uniforms, CapInput};
-import package::tube::{TUBE_SIDES, TUBE_SIDE_STEP, TubeOutput};
+import package::contract::{uniforms, PrintPathCapInput};
+import package::print_path::{TUBE_SIDES, TUBE_SIDE_STEP, PrintPathOutput};
 
 // Latitude bands of a hemispherical cap, from the equator to the tip.
 const CAP_RINGS: u32 = 4u;
 
-fn cap_vertex(input: CapInput, index: u32) -> TubeOutput {
+fn print_path_cap_vertex(input: PrintPathCapInput, index: u32) -> PrintPathOutput {
     let radius = uniforms.extrusion_radius;
     let inset = min(radius, input.room);
     let center = input.tip - inset * input.axis;
@@ -63,7 +58,7 @@ fn cap_vertex(input: CapInput, index: u32) -> TubeOutput {
 
     let color = segment_color(input.kind, input.feed);
 
-    var out: TubeOutput;
+    var out: PrintPathOutput;
     out.position = uniforms.view_proj * vec4f(world, 1.0);
     out.normal = normal;
     out.color = color;

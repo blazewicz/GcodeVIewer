@@ -26,7 +26,7 @@ pub(crate) struct Uniforms {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-pub(crate) struct Instance {
+pub(crate) struct PathInstance {
     start: [f32; 3],
     end: [f32; 3],
     kind: u32,
@@ -39,7 +39,7 @@ pub(crate) struct Instance {
     move_z_max: f32,
 }
 
-impl Instance {
+impl PathInstance {
     const ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![
         0 => Float32x3,
         1 => Float32x3,
@@ -74,7 +74,7 @@ impl Instance {
 /// radius, so the shader derives it from `tip`, `axis`, and `room`.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-pub(crate) struct CapInstance {
+pub(crate) struct PrintPathCapInstance {
     /// The move endpoint the dome must reach.
     tip: [f32; 3],
     /// Unit direction from the tube into the dome.
@@ -89,7 +89,7 @@ pub(crate) struct CapInstance {
     move_z_max: f32,
 }
 
-impl CapInstance {
+impl PrintPathCapInstance {
     const ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![
         0 => Float32x3,
         1 => Float32x3,

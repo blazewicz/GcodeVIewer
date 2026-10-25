@@ -1,7 +1,7 @@
-// Line geometry for non-extruding moves.
+// Geometry for paths of travel moves.
 
 import package::color::segment_color;
-import package::contract::{uniforms, VertexInput};
+import package::contract::{uniforms, PathInput};
 
 const CORNERS = array<vec2f, 6>(
     vec2f(-1.0, -1.0),
@@ -12,12 +12,12 @@ const CORNERS = array<vec2f, 6>(
     vec2f(1.0, 1.0),
 );
 
-struct LineOutput {
+struct TravelPathOutput {
     @builtin(position) position: vec4f,
     @location(0) @interpolate(flat) color: vec4f,
 };
 
-fn line_vertex(input: VertexInput, index: u32) -> LineOutput {
+fn travel_path_vertex(input: PathInput, index: u32) -> TravelPathOutput {
     let clip_start = uniforms.view_proj * vec4f(input.start, 1.0);
     let clip_end = uniforms.view_proj * vec4f(input.end, 1.0);
 
@@ -47,7 +47,7 @@ fn line_vertex(input: VertexInput, index: u32) -> LineOutput {
 
     let color = segment_color(input.kind, input.feed);
 
-    var out: LineOutput;
+    var out: TravelPathOutput;
     out.position = vec4f(ndc * base_clip.w, base_clip.z, base_clip.w);
     out.color = color;
     return out;

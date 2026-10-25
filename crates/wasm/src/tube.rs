@@ -20,8 +20,8 @@ mod tests {
 
     #[test]
     fn the_shader_tessellation_matches_the_draw_counts() {
-        let sides = shader_const(include_str!("shader/tube.wesl"), "TUBE_SIDES");
-        let cap_rings = shader_const(include_str!("shader/cap.wesl"), "CAP_RINGS");
+        let sides = shader_const(include_str!("shader/print_path.wesl"), "TUBE_SIDES");
+        let cap_rings = shader_const(include_str!("shader/print_path_cap.wesl"), "CAP_RINGS");
 
         assert_eq!(sides, SIDES);
         assert_eq!(cap_rings, CAP_RINGS);

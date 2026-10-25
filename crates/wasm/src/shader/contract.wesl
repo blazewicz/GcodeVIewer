@@ -11,7 +11,7 @@ struct Uniforms {
     // Feedrates mapped onto the ends of the colour scale, in mm/min.
     feed_min: f32,
     feed_max: f32,
-    // Unit vector from the scene toward the eye, used to shade tubes.
+    // Unit vector from the scene toward the eye, used to shade print paths.
     light_dir: vec3f,
     // Radius of an extruding move in millimetres.
     extrusion_radius: f32,
@@ -19,7 +19,7 @@ struct Uniforms {
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
-struct VertexInput {
+struct PathInput {
     @location(0) start: vec3f,
     @location(1) end: vec3f,
     @location(2) kind: u32,
@@ -32,10 +32,10 @@ struct VertexInput {
     @location(5) move_z_max: f32,
 };
 
-struct CapInput {
+struct PrintPathCapInput {
     // The move endpoint the dome must reach.
     @location(0) tip: vec3f,
-    // Unit direction from the tube into the dome.
+    // Unit direction from the path into the cap.
     @location(1) axis: vec3f,
     // Longest axial extent the dome may occupy, in millimetres.
     @location(2) room: f32,
