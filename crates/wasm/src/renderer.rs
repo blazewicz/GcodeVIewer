@@ -10,7 +10,7 @@
 
 use bytemuck::Pod;
 use gcode_viewer::MotionRecord;
-use glam::{DVec2, DVec3};
+use glam::{Vec2, Vec3};
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 use wgpu::util::DeviceExt;
@@ -22,7 +22,7 @@ use crate::tube;
 use crate::visibility::KindMask;
 
 /// Device-pixel padding kept around the toolpath when fitting the view.
-const FIT_MARGIN: f64 = 40.0;
+const FIT_MARGIN: f32 = 40.0;
 const DEFAULT_LINE_WIDTH: f32 = 1.6;
 /// Cross-section diameter of an extruding move in millimetres.
 const DEFAULT_EXTRUSION_DIAMETER: f32 = 0.2;
@@ -118,7 +118,7 @@ pub struct Renderer {
     /// Bounds of the feedrate colour scale, in mm/min.
     feed_min: f32,
     feed_max: f32,
-    bounds: Option<(DVec3, DVec3)>,
+    bounds: Option<(Vec3, Vec3)>,
     moves: usize,
     segments: usize,
 }
@@ -255,7 +255,7 @@ impl Renderer {
         );
 
         let mut camera = Camera::new();
-        camera.set_viewport(DVec2::new(width as f64, height as f64));
+        camera.set_viewport(Vec2::new(width as f32, height as f32));
 
         Ok(Renderer {
             canvas,
@@ -295,10 +295,7 @@ impl Renderer {
         self.moves = records.len();
         self.segments = segments.len();
         self.bounds = bounds_of(&records);
-        self.z_max = self
-            .bounds
-            .map(|(_, max)| max.z as f32)
-            .unwrap_or(f32::INFINITY);
+        self.z_max = self.bounds.map(|(_, max)| max.z).unwrap_or(f32::INFINITY);
         (self.feed_min, self.feed_max) = feed_range.unwrap_or((0.0, 1.0));
 
         let mut travel_paths = Vec::new();
@@ -323,7 +320,7 @@ impl Renderer {
 
         let (z_min, z_max) = self
             .bounds
-            .map(|(min, max)| (min.z, max.z))
+            .map(|(min, max)| (min.z as f64, max.z as f64))
             .unwrap_or((0.0, 0.0));
         let (feed_min, feed_max, has_feed) = feed_range
             .map(|(min, max)| (min as f64, max as f64, true))
@@ -426,7 +423,7 @@ impl Renderer {
         self.surface.configure(&self.device, &self.config);
         self.depth_view = create_depth_view(&self.device, &self.config);
         self.camera
-            .set_viewport(DVec2::new(width as f64, height as f64));
+            .set_viewport(Vec2::new(width as f32, height as f32));
     }
 
     /// Frames the whole toolpath.
@@ -438,18 +435,19 @@ impl Renderer {
 
     /// Drags the view by a pointer delta in device pixels.
     pub fn pan(&mut self, dx: f64, dy: f64) {
-        self.camera.pan(DVec2::new(dx, dy));
+        self.camera.pan(Vec2::new(dx as f32, dy as f32));
     }
 
     /// Scales the view around a device-pixel position.
     pub fn zoom(&mut self, factor: f64, x: f64, y: f64) {
-        self.camera.zoom_at(factor, DVec2::new(x, y));
+        self.camera
+            .zoom_at(factor as f32, Vec2::new(x as f32, y as f32));
     }
 
     /// Orbits the view around the toolpath. Yaw and pitch deltas are in
     /// radians.
     pub fn orbit(&mut self, delta_yaw: f64, delta_pitch: f64) {
-        self.camera.orbit(delta_yaw, delta_pitch);
+        self.camera.orbit(delta_yaw as f32, delta_pitch as f32);
     }
 
     /// Sets the line width in device pixels.
@@ -498,7 +496,7 @@ impl Renderer {
 
     fn write_camera(&self) {
         let uniforms = Uniforms {
-            view_proj: self.camera.view_projection().as_mat4().to_cols_array(),
+            view_proj: self.camera.view_projection().to_cols_array(),
             viewport: [self.config.width as f32, self.config.height as f32],
             line_width: self.line_width,
             z_max: self.z_max,
@@ -506,7 +504,7 @@ impl Renderer {
             color_mode: u32::from(self.color_by_feed),
             feed_min: self.feed_min,
             feed_max: self.feed_max,
-            light_dir: self.camera.eye_direction().as_vec3().to_array(),
+            light_dir: self.camera.eye_direction().to_array(),
             extrusion_radius: self.extrusion_radius,
         };
 
@@ -613,13 +611,13 @@ fn create_depth_view(
 }
 
 /// The XYZ extent of every record with a known endpoint.
-fn bounds_of(records: &[MotionRecord]) -> Option<(DVec3, DVec3)> {
-    let mut min = DVec3::splat(f64::INFINITY);
-    let mut max = DVec3::splat(f64::NEG_INFINITY);
+fn bounds_of(records: &[MotionRecord]) -> Option<(Vec3, Vec3)> {
+    let mut min = Vec3::splat(f32::INFINITY);
+    let mut max = Vec3::splat(f32::NEG_INFINITY);
     let mut found = false;
 
     for point in records.iter().flat_map(|r| [r.start, r.end]).flatten() {
-        let point = DVec3::from(point);
+        let point = Vec3::from(point.map(|value| value as f32));
         min = min.min(point);
         max = max.max(point);
         found = true;
