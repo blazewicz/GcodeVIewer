@@ -53,8 +53,8 @@ impl PathInstance {
 
     pub(crate) fn from_segment(segment: tessellate::Segment) -> Self {
         Self {
-            start: segment.a,
-            end: segment.b,
+            start: segment.a.into(),
+            end: segment.b.into(),
             kind: segment.kind as u32,
             flags: u32::from(segment.start_cap) | (u32::from(segment.end_cap) << 1),
             feed: segment.feed.unwrap_or(tessellate::NO_FEED),

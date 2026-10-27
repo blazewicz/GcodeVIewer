@@ -10,6 +10,8 @@
 //! between a thin line and a round tube, and the active feedrate, which the
 //! shader maps onto a colour scale.
 
+use glam::Vec3;
+
 use gcode_viewer::{MotionRecord, MoveKind, linearize_curve};
 
 /// Target chord deviation when flattening arcs, in millimetres.
@@ -46,8 +48,8 @@ impl Kind {
 /// One straight drawable segment in millimetres.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Segment {
-    pub(crate) a: [f32; 3],
-    pub(crate) b: [f32; 3],
+    pub(crate) a: Vec3,
+    pub(crate) b: Vec3,
     pub(crate) kind: Kind,
     /// Active feedrate after the move, in mm/min; `None` when no feedrate is
     /// known yet.
@@ -122,7 +124,14 @@ fn push_record(record: &MotionRecord, out: &mut Vec<Segment>) {
     let kind = Kind::of(record.kind);
 
     for pair in points.windows(2) {
-        push_segment(pair[0], pair[1], kind, extruding, feed, out);
+        push_segment(
+            pair[0].as_vec3(),
+            pair[1].as_vec3(),
+            kind,
+            extruding,
+            feed,
+            out,
+        );
     }
 
     // Every piece shares the move's highest Z so the Z limit hides or shows
@@ -150,33 +159,28 @@ fn is_extruding(record: &MotionRecord) -> bool {
     record.kind != MoveKind::Rapid && record.extrusion.is_none_or(|e| e > 0.0)
 }
 
-// Whether two positions are close to each other to be considered the same point.
-fn is_in_place(a: [f64; 3], b: [f64; 3]) -> bool {
-    a.into_iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-12)
-}
-
 /// Emits one segment.
 fn push_segment(
-    a: [f64; 3],
-    b: [f64; 3],
+    a: Vec3,
+    b: Vec3,
     kind: Kind,
     extruding: bool,
     feed: Option<f32>,
     out: &mut Vec<Segment>,
 ) {
-    if is_in_place(a, b) {
+    if a.distance(b) < 1e-12 {
         return;
     }
 
     out.push(Segment {
-        a: [a[0] as f32, a[1] as f32, a[2] as f32],
-        b: [b[0] as f32, b[1] as f32, b[2] as f32],
+        a,
+        b,
         kind,
         feed,
         extruding,
         start_cap: false,
         end_cap: false,
-        move_z_max: a[2].max(b[2]) as f32,
+        move_z_max: a[2].max(b[2]),
     });
 }
 
@@ -184,14 +188,10 @@ fn push_segment(
 mod tests {
     use super::*;
     use gcode_viewer::CurveKind;
+    use glam::DVec3;
     use rstest::rstest;
 
-    fn record(
-        kind: MoveKind,
-        curve: Option<CurveKind>,
-        start: [f64; 3],
-        end: [f64; 3],
-    ) -> MotionRecord {
+    fn record(kind: MoveKind, curve: Option<CurveKind>, start: DVec3, end: DVec3) -> MotionRecord {
         MotionRecord {
             start: Some(start),
             end: Some(end),
@@ -209,8 +209,8 @@ mod tests {
         i: f64,
         j: f64,
         r: Option<f64>,
-        start: [f64; 3],
-        end: [f64; 3],
+        start: DVec3,
+        end: DVec3,
     ) -> MotionRecord {
         record(
             MoveKind::Arc { clockwise },
@@ -230,7 +230,12 @@ mod tests {
         #[case] capped: bool,
     ) {
         // given
-        let records = [record(kind, None, [1.0, 2.0, 0.0], [4.0, 6.0, 0.5])];
+        let records = [record(
+            kind,
+            None,
+            DVec3::new(1.0, 2.0, 0.0),
+            DVec3::new(4.0, 6.0, 0.5),
+        )];
 
         // when
         let segments = segments(&records);
@@ -239,8 +244,8 @@ mod tests {
         assert_eq!(
             segments,
             vec![Segment {
-                a: [1.0, 2.0, 0.0],
-                b: [4.0, 6.0, 0.5],
+                a: Vec3::new(1.0, 2.0, 0.0),
+                b: Vec3::new(4.0, 6.0, 0.5),
                 kind: expected,
                 feed: Some(1200.0),
                 extruding,
@@ -260,7 +265,7 @@ mod tests {
         #[case] extrusion: Option<f64>,
         #[case] extruding: bool,
     ) {
-        let mut record = record(MoveKind::Feed, None, [0.0; 3], [1.0, 0.0, 0.0]);
+        let mut record = record(MoveKind::Feed, None, DVec3::ZERO, DVec3::new(1.0, 0.0, 0.0));
         record.extrusion = extrusion;
 
         let segments = segments(&[record]);
@@ -280,8 +285,8 @@ mod tests {
             -20.0,
             0.0,
             None,
-            [20.0, 0.0, 0.0],
-            [0.0, 20.0, 0.0],
+            DVec3::new(20.0, 0.0, 0.0),
+            DVec3::new(0.0, 20.0, 0.0),
         )];
 
         let segments = segments(&records);
@@ -296,8 +301,13 @@ mod tests {
     #[test]
     fn consecutive_moves_each_get_their_own_caps() {
         let records = [
-            record(MoveKind::Feed, None, [0.0; 3], [1.0, 0.0, 0.0]),
-            record(MoveKind::Feed, None, [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]),
+            record(MoveKind::Feed, None, DVec3::ZERO, DVec3::new(1.0, 0.0, 0.0)),
+            record(
+                MoveKind::Feed,
+                None,
+                DVec3::new(1.0, 0.0, 0.0),
+                DVec3::new(2.0, 0.0, 0.0),
+            ),
         ];
 
         let segments = segments(&records);
@@ -315,8 +325,8 @@ mod tests {
             -20.0,
             0.0,
             None,
-            [20.0, 0.0, 0.0],
-            [0.0, 20.0, 0.0],
+            DVec3::new(20.0, 0.0, 0.0),
+            DVec3::new(0.0, 20.0, 0.0),
         )];
 
         let segments = segments(&records);
@@ -327,7 +337,7 @@ mod tests {
 
     #[test]
     fn a_move_without_a_feedrate_carries_none() {
-        let mut record = record(MoveKind::Feed, None, [0.0; 3], [1.0, 0.0, 0.0]);
+        let mut record = record(MoveKind::Feed, None, DVec3::ZERO, DVec3::new(1.0, 0.0, 0.0));
         record.feed = None;
 
         let segments = segments(&[record]);
@@ -348,7 +358,12 @@ mod tests {
             .enumerate()
             .map(|(index, feed)| {
                 let x = index as f64;
-                let mut record = record(MoveKind::Feed, None, [x, 0.0, 0.0], [x + 1.0, 0.0, 0.0]);
+                let mut record = record(
+                    MoveKind::Feed,
+                    None,
+                    DVec3::new(x, 0.0, 0.0),
+                    DVec3::new(x + 1.0, 0.0, 0.0),
+                );
                 record.feed = feed.map(f64::from);
                 record
             })
@@ -376,8 +391,8 @@ mod tests {
             -20.0,
             0.0,
             None,
-            [20.0, 0.0, 0.0],
-            [0.0, 20.0, 0.0],
+            DVec3::new(20.0, 0.0, 0.0),
+            DVec3::new(0.0, 20.0, 0.0),
         )];
 
         let segments = segments(&records);
@@ -393,20 +408,20 @@ mod tests {
         let records = [record(
             MoveKind::Feed,
             None,
-            [1.0, 1.0, 0.0],
-            [1.0, 1.0, 5.0],
+            DVec3::new(1.0, 1.0, 0.0),
+            DVec3::new(1.0, 1.0, 5.0),
         )];
 
         let segments = segments(&records);
 
         assert_eq!(segments.len(), 1);
-        assert_eq!(segments[0].a, [1.0, 1.0, 0.0]);
-        assert_eq!(segments[0].b, [1.0, 1.0, 5.0]);
+        assert_eq!(segments[0].a, Vec3::new(1.0, 1.0, 0.0));
+        assert_eq!(segments[0].b, Vec3::new(1.0, 1.0, 5.0));
     }
 
     #[test]
     fn an_unknown_endpoint_is_skipped() {
-        let mut record = record(MoveKind::Feed, None, [0.0; 3], [4.0, 0.0, 0.0]);
+        let mut record = record(MoveKind::Feed, None, DVec3::ZERO, DVec3::new(4.0, 0.0, 0.0));
         record.start = None;
 
         assert!(segments(&[record]).is_empty());
@@ -417,8 +432,8 @@ mod tests {
         let records = [record(
             MoveKind::Feed,
             None,
-            [3.0, 3.0, 3.0],
-            [3.0, 3.0, 3.0],
+            DVec3::new(3.0, 3.0, 3.0),
+            DVec3::new(3.0, 3.0, 3.0),
         )];
 
         assert!(segments(&records).is_empty());
@@ -431,15 +446,15 @@ mod tests {
         let records = [record(
             MoveKind::Arc { clockwise: true },
             None,
-            [0.0, 0.0, 0.0],
-            [10.0, 0.0, 0.0],
+            DVec3::new(0.0, 0.0, 0.0),
+            DVec3::new(10.0, 0.0, 0.0),
         )];
 
         let segments = segments(&records);
 
         assert_eq!(segments.len(), 1);
         assert_eq!(segments[0].kind, Kind::Arc);
-        assert_eq!(segments[0].b, [10.0, 0.0, 0.0]);
+        assert_eq!(segments[0].b, Vec3::new(10.0, 0.0, 0.0));
     }
 
     #[test]
@@ -451,8 +466,8 @@ mod tests {
             -20.0,
             0.0,
             None,
-            [20.0, 0.0, 0.0],
-            [0.0, 20.0, 1.0],
+            DVec3::new(20.0, 0.0, 0.0),
+            DVec3::new(0.0, 20.0, 1.0),
         )];
 
         let segments = segments(&records);

@@ -617,7 +617,7 @@ fn bounds_of(records: &[MotionRecord]) -> Option<(Vec3, Vec3)> {
     let mut found = false;
 
     for point in records.iter().flat_map(|r| [r.start, r.end]).flatten() {
-        let point = Vec3::from(point.map(|value| value as f32));
+        let point = point.as_vec3();
         min = min.min(point);
         max = max.max(point);
         found = true;

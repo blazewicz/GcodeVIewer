@@ -9,6 +9,8 @@
 
 use std::f64::consts::{PI, TAU};
 
+use glam::DVec3;
+
 use crate::gcode::CurveKind;
 
 /// Upper bound on segments for one arc.
@@ -26,11 +28,11 @@ const MAX_ARC_SEGMENTS: usize = 1024;
 /// `spline_samples` the Bézier sample count.
 pub fn linearize_curve(
     curve: Option<CurveKind>,
-    start: [f64; 3],
-    end: [f64; 3],
+    start: DVec3,
+    end: DVec3,
     tolerance: f64,
     spline_samples: usize,
-) -> Vec<[f64; 3]> {
+) -> Vec<DVec3> {
     match curve {
         Some(CurveKind::Arc { clockwise, i, j, r }) => {
             linearize_arc(start, end, i, j, r, clockwise, tolerance)
@@ -47,14 +49,14 @@ pub fn linearize_curve(
 /// Linearizes one arc. The center comes from the `i`/`j` offsets, or from the
 /// radius form when `r` is present; a degenerate shape falls back to a chord.
 fn linearize_arc(
-    start: [f64; 3],
-    end: [f64; 3],
+    start: DVec3,
+    end: DVec3,
     i: f64,
     j: f64,
     r: Option<f64>,
     clockwise: bool,
     tolerance: f64,
-) -> Vec<[f64; 3]> {
+) -> Vec<DVec3> {
     let center = match r {
         Some(radius) => arc_center_from_radius(start, end, radius, clockwise),
         None => Some((start[0] + i, start[1] + j)),
@@ -84,11 +86,11 @@ fn linearize_arc(
     for step in 1..=steps {
         let t = step as f64 / steps as f64;
         let angle = a0 + sweep * t;
-        points.push([
+        points.push(DVec3::new(
             cx + radius * angle.cos(),
             cy + radius * angle.sin(),
             start[2] + (end[2] - start[2]) * t,
-        ]);
+        ));
     }
 
     points
@@ -97,14 +99,14 @@ fn linearize_arc(
 /// Linearizes one cubic Bézier with control points offset from the start
 /// (`i`/`j`) and from the end (`p`/`q`).
 fn linearize_spline(
-    start: [f64; 3],
-    end: [f64; 3],
+    start: DVec3,
+    end: DVec3,
     i: f64,
     j: f64,
     p: f64,
     q: f64,
     samples: usize,
-) -> Vec<[f64; 3]> {
+) -> Vec<DVec3> {
     let c1 = [start[0] + i, start[1] + j];
     let c2 = [end[0] + p, end[1] + q];
 
@@ -114,7 +116,7 @@ fn linearize_spline(
     for step in 1..=samples {
         let t = step as f64 / samples as f64;
         let u = 1.0 - t;
-        points.push([
+        points.push(DVec3::new(
             u * u * u * start[0]
                 + 3.0 * u * u * t * c1[0]
                 + 3.0 * u * t * t * c2[0]
@@ -124,7 +126,7 @@ fn linearize_spline(
                 + 3.0 * u * t * t * c2[1]
                 + t * t * t * end[1],
             start[2] + (end[2] - start[2]) * t,
-        ]);
+        ));
     }
 
     points
@@ -150,8 +152,8 @@ fn sweep_between(a0: f64, a1: f64, clockwise: bool) -> f64 {
 /// candidates exist, and the commanded arc is the one no larger than a
 /// semicircle, matching Marlin's radius interpretation.
 fn arc_center_from_radius(
-    start: [f64; 3],
-    end: [f64; 3],
+    start: DVec3,
+    end: DVec3,
     radius: f64,
     clockwise: bool,
 ) -> Option<(f64, f64)> {
@@ -188,15 +190,24 @@ mod tests {
     use rstest::rstest;
 
     /// The points projected onto the XY plane.
-    fn xy(points: &[[f64; 3]]) -> Vec<[f64; 2]> {
+    fn xy(points: &[DVec3]) -> Vec<[f64; 2]> {
         points.iter().map(|p| [p[0], p[1]]).collect()
     }
 
     #[test]
     fn a_linear_move_is_a_single_chord() {
-        let points = linearize_curve(None, [1.0, 2.0, 0.0], [4.0, 6.0, 0.5], 0.05, 64);
+        let points = linearize_curve(
+            None,
+            DVec3::new(1.0, 2.0, 0.0),
+            DVec3::new(4.0, 6.0, 0.5),
+            0.05,
+            64,
+        );
 
-        assert_eq!(points, vec![[1.0, 2.0, 0.0], [4.0, 6.0, 0.5]]);
+        assert_eq!(
+            points,
+            vec![DVec3::new(1.0, 2.0, 0.0), DVec3::new(4.0, 6.0, 0.5)]
+        );
     }
 
     #[test]
@@ -210,8 +221,8 @@ mod tests {
                 j: 0.0,
                 r: None,
             }),
-            [20.0, 0.0, 0.0],
-            [0.0, 20.0, 0.0],
+            DVec3::new(20.0, 0.0, 0.0),
+            DVec3::new(0.0, 20.0, 0.0),
             0.05,
             64,
         );
@@ -220,7 +231,7 @@ mod tests {
         for point in xy(&points) {
             assert!((point[0].hypot(point[1]) - 20.0).abs() < 1e-3, "{point:?}");
         }
-        assert_eq!(points[0], [20.0, 0.0, 0.0]);
+        assert_eq!(points[0], DVec3::new(20.0, 0.0, 0.0));
         let end = *points.last().unwrap();
         assert!(
             (end[0] - 0.0).abs() < 1e-3 && (end[1] - 20.0).abs() < 1e-3,
@@ -238,8 +249,8 @@ mod tests {
                 j: 10.0,
                 r: None,
             }),
-            [0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
+            DVec3::new(0.0, 0.0, 0.0),
+            DVec3::new(0.0, 0.0, 0.0),
             0.05,
             64,
         );
@@ -267,8 +278,8 @@ mod tests {
                 j: 0.0,
                 r: None,
             }),
-            [20.0, 0.0, 0.0],
-            [0.0, 20.0, 1.0],
+            DVec3::new(20.0, 0.0, 0.0),
+            DVec3::new(0.0, 20.0, 1.0),
             0.05,
             64,
         );
@@ -299,8 +310,8 @@ mod tests {
                 j: 0.0,
                 r: Some(8.0),
             }),
-            [0.0, 0.0, 0.0],
-            [10.0, 0.0, 0.0],
+            DVec3::new(0.0, 0.0, 0.0),
+            DVec3::new(10.0, 0.0, 0.0),
             0.05,
             64,
         );
@@ -330,13 +341,16 @@ mod tests {
                 j: 0.0,
                 r: Some(4.0),
             }),
-            [0.0, 0.0, 0.0],
-            [10.0, 0.0, 0.0],
+            DVec3::new(0.0, 0.0, 0.0),
+            DVec3::new(10.0, 0.0, 0.0),
             0.05,
             64,
         );
 
-        assert_eq!(points, vec![[0.0, 0.0, 0.0], [10.0, 0.0, 0.0]]);
+        assert_eq!(
+            points,
+            vec![DVec3::new(0.0, 0.0, 0.0), DVec3::new(10.0, 0.0, 0.0)]
+        );
     }
 
     #[test]
@@ -350,15 +364,15 @@ mod tests {
                 p: -3.0,
                 q: 5.0,
             }),
-            [0.0, 0.0, 0.0],
-            [10.0, 0.0, 0.0],
+            DVec3::new(0.0, 0.0, 0.0),
+            DVec3::new(10.0, 0.0, 0.0),
             0.05,
             64,
         );
 
         assert_eq!(points.len(), 65);
-        assert_eq!(points[0], [0.0, 0.0, 0.0]);
-        assert_eq!(*points.last().unwrap(), [10.0, 0.0, 0.0]);
+        assert_eq!(points[0], DVec3::new(0.0, 0.0, 0.0));
+        assert_eq!(*points.last().unwrap(), DVec3::new(10.0, 0.0, 0.0));
 
         let midpoint = points[64 / 2];
         assert!((midpoint[0] - 5.0).abs() < 1e-3, "{midpoint:?}");

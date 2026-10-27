@@ -8,6 +8,8 @@
 //! interpretable, because a record only needs endpoints and shape, not
 //! geometry that must be preserved.
 
+use glam::DVec3;
+
 use crate::gcode::{CurveKind, InterpretedMotion, Line, MoveKind, Outcome, State};
 
 /// One interpreted motion: a linear move or a curve.
@@ -18,8 +20,8 @@ use crate::gcode::{CurveKind, InterpretedMotion, Line, MoveKind, Outcome, State}
 /// still reported. Curve offsets are in millimetres too.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MotionRecord {
-    pub start: Option<[f64; 3]>,
-    pub end: Option<[f64; 3]>,
+    pub start: Option<DVec3>,
+    pub end: Option<DVec3>,
     /// Active feedrate after this line, in mm/min.
     pub feed: Option<f64>,
     /// Signed extrusion delta in millimetres, `Some(0.0)` when the line carries
@@ -44,7 +46,7 @@ pub fn motions(text: &str) -> Vec<MotionRecord> {
 /// Returns every motion whose start or end lies inside the closed box spanned
 /// by `min` and `max`. Corners may be given in any order; a NaN corner matches
 /// nothing because every comparison against NaN is false.
-pub fn moves_in_box(text: &str, min: [f64; 3], max: [f64; 3]) -> Vec<MotionRecord> {
+pub fn moves_in_box(text: &str, min: DVec3, max: DVec3) -> Vec<MotionRecord> {
     let mut min = min;
     let mut max = max;
     for axis in 0..3 {
@@ -60,12 +62,12 @@ pub fn moves_in_box(text: &str, min: [f64; 3], max: [f64; 3]) -> Vec<MotionRecor
 /// collected matches.
 struct Scanner {
     state: State,
-    region: Option<([f64; 3], [f64; 3])>,
+    region: Option<(DVec3, DVec3)>,
     found: Vec<MotionRecord>,
 }
 
 impl Scanner {
-    fn new(region: Option<([f64; 3], [f64; 3])>) -> Self {
+    fn new(region: Option<(DVec3, DVec3)>) -> Self {
         Self {
             state: State::new(),
             region,
@@ -87,8 +89,8 @@ impl Scanner {
     /// motion is kept; with one, an unknown endpoint can never match but the
     /// other endpoint still can.
     fn record(&mut self, m: &InterpretedMotion<'_>, raw: &str, line_number: usize) {
-        let start = m.start.zip_xyz();
-        let end = m.end.zip_xyz();
+        let start = m.start.zip_xyz().map(DVec3::from_array);
+        let end = m.end.zip_xyz().map(DVec3::from_array);
 
         if self.matches(start.as_ref(), end.as_ref()) {
             self.found.push(MotionRecord {
@@ -104,12 +106,12 @@ impl Scanner {
         }
     }
 
-    fn matches(&self, start: Option<&[f64; 3]>, end: Option<&[f64; 3]>) -> bool {
+    fn matches(&self, start: Option<&DVec3>, end: Option<&DVec3>) -> bool {
         self.region
             .is_none_or(|(min, max)| self.contains(start, min, max) || self.contains(end, min, max))
     }
 
-    fn contains(&self, point: Option<&[f64; 3]>, min: [f64; 3], max: [f64; 3]) -> bool {
+    fn contains(&self, point: Option<&DVec3>, min: DVec3, max: DVec3) -> bool {
         point.is_some_and(|p| (0..3).all(|axis| min[axis] <= p[axis] && p[axis] <= max[axis]))
     }
 }
@@ -135,11 +137,11 @@ mod tests {
 
     /// A box around the origin, one millimetre in each direction.
     #[fixture]
-    fn origin_box() -> ([f64; 3], [f64; 3]) {
-        ([-1.0, -1.0, -1.0], [1.0, 1.0, 1.0])
+    fn origin_box() -> (DVec3, DVec3) {
+        (DVec3::splat(-1.0), DVec3::splat(1.0))
     }
 
-    fn found(source: &str, min: [f64; 3], max: [f64; 3]) -> Vec<MotionRecord> {
+    fn found(source: &str, min: DVec3, max: DVec3) -> Vec<MotionRecord> {
         moves_in_box(source, min, max)
     }
 
@@ -149,14 +151,18 @@ mod tests {
         let source = format!("{ready}G1 X5 Y5 Z1 E1\n");
 
         // when
-        let moves = found(&source, [4.0, 4.0, 0.0], [5.0, 5.0, 1.0]);
+        let moves = found(
+            &source,
+            DVec3::new(4.0, 4.0, 0.0),
+            DVec3::new(5.0, 5.0, 1.0),
+        );
 
         // then
         assert_eq!(
             moves,
             vec![MotionRecord {
-                start: Some([0.0, 0.0, 0.0]),
-                end: Some([5.0, 5.0, 1.0]),
+                start: Some(DVec3::new(0.0, 0.0, 0.0)),
+                end: Some(DVec3::new(5.0, 5.0, 1.0)),
                 feed: Some(1200.0),
                 extrusion: Some(1.0),
                 kind: MoveKind::Feed,
@@ -168,13 +174,13 @@ mod tests {
     }
 
     #[rstest]
-    #[case::inside([4.0, 4.0, 0.0], [5.0, 5.0, 1.0], 1)]
-    #[case::x_outside([5.5, 4.0, 0.0], [6.0, 5.0, 1.0], 0)]
-    #[case::y_outside([4.0, 5.5, 0.0], [5.0, 6.0, 1.0], 0)]
-    #[case::z_outside([4.0, 4.0, 1.5], [5.0, 5.0, 2.0], 0)]
+    #[case::inside(DVec3::new(4.0, 4.0, 0.0), DVec3::new(5.0, 5.0, 1.0), 1)]
+    #[case::x_outside(DVec3::new(5.5, 4.0, 0.0), DVec3::new(6.0, 5.0, 1.0), 0)]
+    #[case::y_outside(DVec3::new(4.0, 5.5, 0.0), DVec3::new(5.0, 6.0, 1.0), 0)]
+    #[case::z_outside(DVec3::new(4.0, 4.0, 1.5), DVec3::new(5.0, 5.0, 2.0), 0)]
     fn every_axis_must_contain_the_endpoint(
-        #[case] min: [f64; 3],
-        #[case] max: [f64; 3],
+        #[case] min: DVec3,
+        #[case] max: DVec3,
         #[case] expected: usize,
         ready: &str,
     ) {
@@ -192,7 +198,11 @@ mod tests {
     fn box_bounds_are_inclusive(ready: &str) {
         let source = format!("{ready}G1 X5 Y5 Z1 E1\n");
 
-        let moves = found(&source, [5.0, 5.0, 1.0], [5.0, 5.0, 1.0]);
+        let moves = found(
+            &source,
+            DVec3::new(5.0, 5.0, 1.0),
+            DVec3::new(5.0, 5.0, 1.0),
+        );
 
         assert_eq!(moves.len(), 1);
     }
@@ -201,8 +211,16 @@ mod tests {
     fn corners_may_be_given_in_any_order(ready: &str) {
         let source = format!("{ready}G1 X5 Y5 Z1 E1\n");
 
-        let forward = found(&source, [4.0, 4.0, 0.0], [5.0, 5.0, 1.0]);
-        let reversed = found(&source, [5.0, 5.0, 1.0], [4.0, 4.0, 0.0]);
+        let forward = found(
+            &source,
+            DVec3::new(4.0, 4.0, 0.0),
+            DVec3::new(5.0, 5.0, 1.0),
+        );
+        let reversed = found(
+            &source,
+            DVec3::new(5.0, 5.0, 1.0),
+            DVec3::new(4.0, 4.0, 0.0),
+        );
 
         assert_eq!(forward, reversed);
         assert_eq!(forward.len(), 1);
@@ -211,7 +229,7 @@ mod tests {
     #[rstest]
     fn a_move_crossing_the_box_without_an_endpoint_inside_is_skipped(
         ready: &str,
-        origin_box: ([f64; 3], [f64; 3]),
+        origin_box: (DVec3, DVec3),
     ) {
         // A segment through the box from one side to the other; neither
         // endpoint is inside, and the query does not test the path between.
@@ -223,31 +241,25 @@ mod tests {
     }
 
     #[rstest]
-    fn a_move_is_reported_when_only_its_start_is_inside(
-        ready: &str,
-        origin_box: ([f64; 3], [f64; 3]),
-    ) {
+    fn a_move_is_reported_when_only_its_start_is_inside(ready: &str, origin_box: (DVec3, DVec3)) {
         let source = format!("{ready}G1 X20 Y0 Z0 E1\n");
 
         let moves = found(&source, origin_box.0, origin_box.1);
 
         assert_eq!(moves.len(), 1);
-        assert_eq!(moves[0].start, Some([0.0, 0.0, 0.0]));
-        assert_eq!(moves[0].end, Some([20.0, 0.0, 0.0]));
+        assert_eq!(moves[0].start, Some(DVec3::new(0.0, 0.0, 0.0)));
+        assert_eq!(moves[0].end, Some(DVec3::new(20.0, 0.0, 0.0)));
     }
 
     #[rstest]
-    fn a_move_is_reported_when_only_its_end_is_inside(
-        ready: &str,
-        origin_box: ([f64; 3], [f64; 3]),
-    ) {
+    fn a_move_is_reported_when_only_its_end_is_inside(ready: &str, origin_box: (DVec3, DVec3)) {
         let source = format!("{ready}G92 X50 Y50 Z10\nG1 X0 Y0 Z0 E2\n");
 
         let moves = found(&source, origin_box.0, origin_box.1);
 
         assert_eq!(moves.len(), 1);
-        assert_eq!(moves[0].start, Some([50.0, 50.0, 10.0]));
-        assert_eq!(moves[0].end, Some([0.0, 0.0, 0.0]));
+        assert_eq!(moves[0].start, Some(DVec3::new(50.0, 50.0, 10.0)));
+        assert_eq!(moves[0].end, Some(DVec3::new(0.0, 0.0, 0.0)));
     }
 
     #[test]
@@ -256,15 +268,15 @@ mod tests {
         // them; the end is fully known and can match on its own.
         let source = "G21\nG90\nG92 Z0\nG1 F1200\nG1 X5 Y5 Z1 E1\n";
 
-        let moves = found(source, [4.0, 4.0, 0.0], [5.0, 5.0, 1.0]);
+        let moves = found(source, DVec3::new(4.0, 4.0, 0.0), DVec3::new(5.0, 5.0, 1.0));
 
         assert_eq!(moves.len(), 1);
         assert_eq!(moves[0].start, None);
-        assert_eq!(moves[0].end, Some([5.0, 5.0, 1.0]));
+        assert_eq!(moves[0].end, Some(DVec3::new(5.0, 5.0, 1.0)));
     }
 
     #[rstest]
-    fn a_reset_makes_relative_endpoints_unknowable(ready: &str, origin_box: ([f64; 3], [f64; 3])) {
+    fn a_reset_makes_relative_endpoints_unknowable(ready: &str, origin_box: (DVec3, DVec3)) {
         // G28 clears the position, so the relative move has no anchor.
         let source = format!("{ready}G28\nG91\nG1 X5 Y5 Z1 E1\n");
 
@@ -277,7 +289,11 @@ mod tests {
     fn an_absolute_move_after_a_reset_is_still_testable(ready: &str) {
         let source = format!("{ready}G28\nG1 X5 Y5 Z1 E1\n");
 
-        let moves = found(&source, [4.0, 4.0, 0.0], [5.0, 5.0, 1.0]);
+        let moves = found(
+            &source,
+            DVec3::new(4.0, 4.0, 0.0),
+            DVec3::new(5.0, 5.0, 1.0),
+        );
 
         assert_eq!(moves.len(), 1);
         assert_eq!(moves[0].start, None);
@@ -287,7 +303,11 @@ mod tests {
     fn an_unlexable_line_clears_the_position(ready: &str) {
         let source = format!("{ready}G1 X\nG1 X5 Y5 Z1 E1\n");
 
-        let moves = found(&source, [4.0, 4.0, 0.0], [5.0, 5.0, 1.0]);
+        let moves = found(
+            &source,
+            DVec3::new(4.0, 4.0, 0.0),
+            DVec3::new(5.0, 5.0, 1.0),
+        );
 
         assert_eq!(moves.len(), 1);
         assert_eq!(moves[0].start, None);
@@ -297,24 +317,32 @@ mod tests {
     fn relative_moves_are_resolved_against_the_current_position(ready: &str) {
         let source = format!("{ready}G91\nG1 X5 Y3 Z1 E1\nG90\nG1 X50 Y50 Z1 E2\n");
 
-        let moves = found(&source, [4.0, 2.0, 0.0], [5.0, 3.0, 1.0]);
+        let moves = found(
+            &source,
+            DVec3::new(4.0, 2.0, 0.0),
+            DVec3::new(5.0, 3.0, 1.0),
+        );
 
         // The relative move ends inside the box and the absolute move starts
         // there, so both are reported.
         assert_eq!(moves.len(), 2);
-        assert_eq!(moves[0].start, Some([0.0, 0.0, 0.0]));
-        assert_eq!(moves[0].end, Some([5.0, 3.0, 1.0]));
-        assert_eq!(moves[1].start, Some([5.0, 3.0, 1.0]));
+        assert_eq!(moves[0].start, Some(DVec3::new(0.0, 0.0, 0.0)));
+        assert_eq!(moves[0].end, Some(DVec3::new(5.0, 3.0, 1.0)));
+        assert_eq!(moves[1].start, Some(DVec3::new(5.0, 3.0, 1.0)));
     }
 
     #[rstest]
     fn inch_units_are_converted_to_millimetres(ready: &str) {
         let source = format!("{ready}G20\nG1 X1 Y1 Z0.04 E0.04\n");
 
-        let moves = found(&source, [25.0, 25.0, 1.0], [26.0, 26.0, 1.1]);
+        let moves = found(
+            &source,
+            DVec3::new(25.0, 25.0, 1.0),
+            DVec3::new(26.0, 26.0, 1.1),
+        );
 
         assert_eq!(moves.len(), 1);
-        assert_eq!(moves[0].end, Some([25.4, 25.4, 1.016]));
+        assert_eq!(moves[0].end, Some(DVec3::new(25.4, 25.4, 1.016)));
     }
 
     #[rstest]
@@ -330,23 +358,31 @@ mod tests {
         let source = format!("{ready}{command}\nG1 X0 Y20 Z0 E2\n");
 
         // when
-        let moves = found(&source, [-1.0, 9.0, -1.0], [1.0, 10.0, 1.0]);
+        let moves = found(
+            &source,
+            DVec3::new(-1.0, 9.0, -1.0),
+            DVec3::new(1.0, 10.0, 1.0),
+        );
 
         // then the curve ends inside and the next move starts there
         assert_eq!(moves.len(), 2);
-        assert_eq!(moves[0].end, Some([0.0, 10.0, 0.0]));
+        assert_eq!(moves[0].end, Some(DVec3::new(0.0, 10.0, 0.0)));
         assert_eq!(moves[0].kind, kind);
-        assert_eq!(moves[1].start, Some([0.0, 10.0, 0.0]));
+        assert_eq!(moves[1].start, Some(DVec3::new(0.0, 10.0, 0.0)));
     }
 
     #[rstest]
     fn implicit_motion_uses_the_modal_command(ready: &str) {
         let source = format!("{ready}G0 X1 Y1 Z1\nX2 Y2 Z2\n");
 
-        let moves = found(&source, [1.5, 1.5, 1.5], [2.5, 2.5, 2.5]);
+        let moves = found(
+            &source,
+            DVec3::new(1.5, 1.5, 1.5),
+            DVec3::new(2.5, 2.5, 2.5),
+        );
 
         assert_eq!(moves.len(), 1);
-        assert_eq!(moves[0].end, Some([2.0, 2.0, 2.0]));
+        assert_eq!(moves[0].end, Some(DVec3::new(2.0, 2.0, 2.0)));
         assert_eq!(moves[0].kind, MoveKind::Rapid);
     }
 
@@ -354,7 +390,11 @@ mod tests {
     fn implicit_motion_without_a_modal_command_is_ignored() {
         let source = "G21\nG90\nX5 Y5 Z0\n";
 
-        let moves = found(source, [-1.0, -1.0, -1.0], [1.0, 1.0, 1.0]);
+        let moves = found(
+            source,
+            DVec3::new(-1.0, -1.0, -1.0),
+            DVec3::new(1.0, 1.0, 1.0),
+        );
 
         assert_eq!(moves, Vec::new());
     }
@@ -362,20 +402,20 @@ mod tests {
     #[rstest]
     fn an_extrusion_only_line_is_a_move_at_the_current_position(
         ready: &str,
-        origin_box: ([f64; 3], [f64; 3]),
+        origin_box: (DVec3, DVec3),
     ) {
         let source = format!("{ready}G1 E-1\n");
 
         let moves = found(&source, origin_box.0, origin_box.1);
 
         assert_eq!(moves.len(), 1);
-        assert_eq!(moves[0].start, Some([0.0, 0.0, 0.0]));
-        assert_eq!(moves[0].end, Some([0.0, 0.0, 0.0]));
+        assert_eq!(moves[0].start, Some(DVec3::new(0.0, 0.0, 0.0)));
+        assert_eq!(moves[0].end, Some(DVec3::new(0.0, 0.0, 0.0)));
         assert_eq!(moves[0].extrusion, Some(-1.0));
     }
 
     #[rstest]
-    fn a_feed_only_line_is_not_a_move(ready: &str, origin_box: ([f64; 3], [f64; 3])) {
+    fn a_feed_only_line_is_not_a_move(ready: &str, origin_box: (DVec3, DVec3)) {
         let source = format!("{ready}G1 F900\n");
 
         let moves = found(&source, origin_box.0, origin_box.1);
@@ -387,7 +427,11 @@ mod tests {
     fn feed_carries_over_and_extrusion_is_the_delta(ready: &str) {
         let source = format!("{ready}G1 X5 Y5 Z0 E2\nG1 X6 Y6 Z0 E5 F900\n");
 
-        let moves = found(&source, [4.0, 4.0, -1.0], [6.0, 6.0, 1.0]);
+        let moves = found(
+            &source,
+            DVec3::new(4.0, 4.0, -1.0),
+            DVec3::new(6.0, 6.0, 1.0),
+        );
 
         assert_eq!(moves.len(), 2);
         assert_eq!(moves[0].feed, Some(1200.0));
@@ -402,7 +446,11 @@ mod tests {
         // while the position is fully known.
         let source = "G21\nG90\nG92 X0 Y0 Z0\nG1 X5 Y5 Z0 E1 F1200\n";
 
-        let moves = found(source, [-1.0, -1.0, -1.0], [6.0, 6.0, 1.0]);
+        let moves = found(
+            source,
+            DVec3::new(-1.0, -1.0, -1.0),
+            DVec3::new(6.0, 6.0, 1.0),
+        );
 
         assert_eq!(moves.len(), 1);
         assert_eq!(moves[0].extrusion, None);
@@ -413,17 +461,25 @@ mod tests {
     fn text_messages_leave_the_position_known(ready: &str) {
         let source = format!("{ready}M117 hello\nG1 X5 Y5 Z1 E1\n");
 
-        let moves = found(&source, [4.0, 4.0, 0.0], [5.0, 5.0, 1.0]);
+        let moves = found(
+            &source,
+            DVec3::new(4.0, 4.0, 0.0),
+            DVec3::new(5.0, 5.0, 1.0),
+        );
 
         assert_eq!(moves.len(), 1);
-        assert_eq!(moves[0].start, Some([0.0, 0.0, 0.0]));
+        assert_eq!(moves[0].start, Some(DVec3::new(0.0, 0.0, 0.0)));
     }
 
     #[rstest]
     fn the_reported_line_keeps_comments_and_drops_the_ending(ready: &str) {
         let source = format!("{ready}G1 X5 Y5 Z1 E1 ; note\r\n");
 
-        let moves = found(&source, [4.0, 4.0, 0.0], [5.0, 5.0, 1.0]);
+        let moves = found(
+            &source,
+            DVec3::new(4.0, 4.0, 0.0),
+            DVec3::new(5.0, 5.0, 1.0),
+        );
 
         assert_eq!(moves[0].line, "G1 X5 Y5 Z1 E1 ; note");
     }
@@ -434,7 +490,11 @@ mod tests {
         // though no absolute origin was ever established.
         let source = "G21\nG90\nG92 X0 Y0 Z0\nM83\nG1 X5 Y5 Z0 E1\n";
 
-        let moves = found(source, [-1.0, -1.0, -1.0], [6.0, 6.0, 1.0]);
+        let moves = found(
+            source,
+            DVec3::new(-1.0, -1.0, -1.0),
+            DVec3::new(6.0, 6.0, 1.0),
+        );
 
         assert_eq!(moves.len(), 1);
         assert_eq!(moves[0].extrusion, Some(1.0));
@@ -446,7 +506,11 @@ mod tests {
         // the optimizer clears it to stay conservative.
         let source = format!("{ready}G0 X1 Y1 Z0\n");
 
-        let moves = found(&source, [-1.0, -1.0, -1.0], [1.0, 1.0, 1.0]);
+        let moves = found(
+            &source,
+            DVec3::new(-1.0, -1.0, -1.0),
+            DVec3::new(1.0, 1.0, 1.0),
+        );
 
         assert_eq!(moves.len(), 1);
         assert_eq!(moves[0].kind, MoveKind::Rapid);
@@ -455,7 +519,7 @@ mod tests {
 
     #[test]
     fn empty_input_yields_no_moves() {
-        assert!(found("", [-1.0; 3], [1.0; 3]).is_empty());
+        assert!(found("", DVec3::splat(-1.0), DVec3::splat(1.0)).is_empty());
     }
 
     #[rstest]
@@ -539,7 +603,7 @@ mod tests {
 
         assert_eq!(moves.len(), 1);
         assert_eq!(moves[0].start, None);
-        assert_eq!(moves[0].end, Some([5.0, 5.0, 0.2]));
+        assert_eq!(moves[0].end, Some(DVec3::new(5.0, 5.0, 0.2)));
     }
 
     #[test]
