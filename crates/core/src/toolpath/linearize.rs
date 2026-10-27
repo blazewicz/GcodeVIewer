@@ -7,9 +7,9 @@
 //! deviation bound (`radius * angle^2 / 8`) and the same offset conventions, so
 //! they live together and are cross-tested.
 
-use std::f64::consts::{PI, TAU};
+use std::f64::consts::TAU;
 
-use glam::{DVec2, DVec3};
+use glam::{DVec2, DVec3, Vec3Swizzles};
 
 use crate::gcode::CurveKind;
 
@@ -153,31 +153,25 @@ fn sweep_between(a0: f64, a1: f64, clockwise: bool) -> f64 {
 /// candidates exist, and the commanded arc is the one no larger than a
 /// semicircle, matching Marlin's radius interpretation.
 fn arc_center_from_radius(start: DVec3, end: DVec3, radius: f64, clockwise: bool) -> Option<DVec2> {
-    let radius = radius.abs();
-    let (x0, y0) = (start.x, start.y);
-    let (x1, y1) = (end.x, end.y);
-    let (dx, dy) = (x1 - x0, y1 - y0);
-    let chord = dx.hypot(dy);
+    let p0 = start.xy();
+    let d = end.xy() - p0;
+    let chord_sq = d.length_squared();
+    let radius_sq = radius * radius;
 
-    if chord < 1e-12 || radius < chord / 2.0 {
+    if !chord_sq.is_finite()
+        || !radius_sq.is_finite()
+        || chord_sq < 1e-24
+        || chord_sq > 4.0 * radius_sq
+    {
         return None;
     }
 
-    let (mx, my) = ((x0 + x1) / 2.0, (y0 + y1) / 2.0);
-    let height = (radius * radius - (chord / 2.0).powi(2)).sqrt();
-    let (px, py) = (-dy / chord, dx / chord);
+    let height = (radius_sq / chord_sq - 0.25).sqrt();
+    let normal = DVec2::new(-d.y, d.x);
 
-    [
-        DVec2::new(mx + px * height, my + py * height),
-        DVec2::new(mx - px * height, my - py * height),
-    ]
-    .into_iter()
-    .find(|&c| {
-        let a0 = (y0 - c.y).atan2(x0 - c.x);
-        let a1 = (y1 - c.y).atan2(x1 - c.x);
+    let offset = normal * height * (if clockwise { -1.0 } else { 1.0 });
 
-        sweep_between(a0, a1, clockwise).abs() <= PI + 1e-9
-    })
+    Some(p0 + d * 0.5 + offset)
 }
 
 #[cfg(test)]
