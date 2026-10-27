@@ -57,43 +57,44 @@ fn linearize_arc(
     clockwise: bool,
     tolerance: f64,
 ) -> Vec<DVec3> {
+    let p0 = start.xy();
+    let p1 = end.xy();
+
     let center = match r {
         Some(radius) => match arc_center_from_radius(start, end, radius, clockwise) {
-            Some(c) => c,
-            None => {
-                return vec![start, end];
-            }
+            Some(center) => center,
+            None => return vec![start, end],
         },
-        None => DVec2::new(start.x + i, start.y + j),
+        None => p0 + DVec2::new(i, j),
     };
 
-    let radius = (start.x - center.x).hypot(start.y - center.y);
+    let v0 = p0 - center;
+    let v1 = p1 - center;
+    let radius = v0.length();
+
     if radius < 1e-12 {
         return vec![start, end];
     }
 
-    let a0 = (start.y - center.y).atan2(start.x - center.x);
-    let a1 = (end.y - center.y).atan2(end.x - center.x);
+    let a0 = v0.y.atan2(v0.x);
+    let a1 = v1.y.atan2(v1.x);
     let sweep = sweep_between(a0, a1, clockwise);
 
-    // Chord deviation of a step is about radius * step^2 / 8, so this keeps it
-    // under the tolerance while the clamp bounds the worst case.
     let steps = ((sweep.abs() * (radius / (8.0 * tolerance)).sqrt()).ceil() as usize)
         .clamp(2, MAX_ARC_SEGMENTS);
 
     let mut points = Vec::with_capacity(steps + 1);
     points.push(start);
 
-    for step in 1..=steps {
+    for step in 1..steps {
         let t = step as f64 / steps as f64;
         let angle = a0 + sweep * t;
-        points.push(DVec3::new(
-            center.x + radius * angle.cos(),
-            center.y + radius * angle.sin(),
-            start.z + (end.z - start.z) * t,
-        ));
+        let xy = center + DVec2::from_angle(angle) * radius;
+
+        points.push(xy.extend(start.z + (end.z - start.z) * t));
     }
 
+    points.push(end);
     points
 }
 
