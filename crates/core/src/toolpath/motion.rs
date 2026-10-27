@@ -35,8 +35,10 @@ impl Move<'_> {
 
 pub(crate) enum Piece<'a> {
     /// A single line to be preserved verbatim.
+    #[allow(unused)]
     Raw(&'a str),
     /// A sequence of linear moves.
+    #[allow(unused)]
     Run(Vec<Move<'a>>),
 }
 
