@@ -109,18 +109,16 @@ impl Camera {
         let depth = 0.5 / self.radius.max(1e-6);
 
         let axes = Mat3::from_cols(x * sx, y * sy, z * -depth).transpose();
+        let translation = Vec3::new(
+            -sx * x.dot(self.target),
+            -sy * y.dot(self.target),
+            depth * z.dot(self.focus) + 0.5,
+        );
 
-        Mat4::from_mat3_translation(
-            axes,
-            Vec3::new(
-                -sx * x.dot(self.target),
-                -sy * y.dot(self.target),
-                depth * z.dot(self.focus) + 0.5,
-            ),
-        )
+        Mat4::from_mat3_translation(axes, translation)
     }
 
-    /// The unit vector from the scene toward the eye, used to shade tubes.
+    /// The unit vector from the scene toward the eye, used to shade surfaces.
     pub(crate) fn eye_direction(&self) -> Vec3 {
         self.basis().2
     }
@@ -130,8 +128,9 @@ impl Camera {
         // Yaw about the world Z axis, then pitch toward the horizon. The axes
         // are the rotated frame's (Y, -X, Z), which keeps the right vector
         // horizontal under yaw.
-        let orientation =
-            Quat::from_rotation_z(self.yaw) * Quat::from_rotation_y(FRAC_PI_2 - self.pitch);
+        let yaw_quat = Quat::from_rotation_z(self.yaw);
+        let pitch_quat = Quat::from_rotation_y(FRAC_PI_2 - self.pitch);
+        let orientation = yaw_quat * pitch_quat;
 
         (
             orientation * Vec3::Y,
