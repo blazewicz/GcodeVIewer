@@ -59,20 +59,20 @@ fn linearize_arc(
 ) -> Vec<DVec3> {
     let center = match r {
         Some(radius) => arc_center_from_radius(start, end, radius, clockwise),
-        None => Some((start[0] + i, start[1] + j)),
+        None => Some((start.x + i, start.y + j)),
     };
 
     let Some((cx, cy)) = center else {
         return vec![start, end];
     };
 
-    let radius = (start[0] - cx).hypot(start[1] - cy);
+    let radius = (start.x - cx).hypot(start.y - cy);
     if radius < 1e-12 {
         return vec![start, end];
     }
 
-    let a0 = (start[1] - cy).atan2(start[0] - cx);
-    let a1 = (end[1] - cy).atan2(end[0] - cx);
+    let a0 = (start.y - cy).atan2(start.x - cx);
+    let a1 = (end.y - cy).atan2(end.x - cx);
     let sweep = sweep_between(a0, a1, clockwise);
 
     // Chord deviation of a step is about radius * step^2 / 8, so this keeps it
@@ -89,7 +89,7 @@ fn linearize_arc(
         points.push(DVec3::new(
             cx + radius * angle.cos(),
             cy + radius * angle.sin(),
-            start[2] + (end[2] - start[2]) * t,
+            start.z + (end.z - start.z) * t,
         ));
     }
 
