@@ -55,9 +55,11 @@ pub(crate) struct Segment {
     /// Whether the move deposits material; the renderer draws these as tubes.
     pub(crate) extruding: bool,
     /// Whether `a` is the start of its move rather than an interior joint of a
-    /// flattened curve. The renderer domes the tube there.
+    /// flattened curve. The renderer starts the tube with a socket there.
     pub(crate) start_cap: bool,
-    /// Whether `b` is the end of its move rather than an interior joint.
+    /// Whether `b` is the end of its move rather than an interior joint. The
+    /// renderer closes the tube with a cone there; interior joints let the
+    /// cone reach into the following segment's socket.
     pub(crate) end_cap: bool,
     /// Highest Z the whole move reaches. Z interpolates linearly along arcs
     /// and splines, so this is the higher of the move's endpoints. The
@@ -131,7 +133,8 @@ fn push_record(record: &MotionRecord, out: &mut Vec<Segment>) {
     }
 
     // Only the first and last flattened pieces border the move itself; the
-    // joints between them continue one move and stay uncapped.
+    // joints between them continue one move and overlap their cones and
+    // sockets.
     if extruding && out.len() > first {
         out[first].start_cap = true;
         let last = out.len() - 1;

@@ -23,23 +23,10 @@ struct PathInput {
     @location(0) start: vec3f,
     @location(1) end: vec3f,
     @location(2) kind: u32,
-    // Bit 0: the segment starts its move and is capped there; bit 1: it ends
-    // one. Interior joints of a flattened curve carry neither.
+    // Bit 0: the segment starts its move; bit 1: it ends one. Interior joints
+    // of a flattened curve carry neither. Print paths close move-final tubes
+    // with a contained cone, while interior cones reach into the next socket.
     @location(3) flags: u32,
-    // Active feedrate in mm/min, or NO_FEED when unknown.
-    @location(4) feed: f32,
-    // Highest Z of the whole move; the Z limit hides moves whole.
-    @location(5) move_z_max: f32,
-};
-
-struct PrintPathCapInput {
-    // The move endpoint the dome must reach.
-    @location(0) tip: vec3f,
-    // Unit direction from the path into the cap.
-    @location(1) axis: vec3f,
-    // Longest axial extent the dome may occupy, in millimetres.
-    @location(2) room: f32,
-    @location(3) kind: u32,
     // Active feedrate in mm/min, or NO_FEED when unknown.
     @location(4) feed: f32,
     // Highest Z of the whole move; the Z limit hides moves whole.

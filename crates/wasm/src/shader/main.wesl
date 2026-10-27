@@ -1,5 +1,4 @@
-import package::contract::{uniforms, PathInput, PrintPathCapInput};
-import package::print_path_cap::print_path_cap_vertex;
+import package::contract::{uniforms, PathInput};
 import package::print_path::{print_path_vertex, PrintPathOutput};
 import package::travel_path::{travel_path_vertex, TravelPathOutput};
 
@@ -31,17 +30,6 @@ fn vs_print_path(input: PathInput, @builtin(vertex_index) index: u32) -> PrintPa
     }
 
     return print_path_vertex(input, index);
-}
-
-@vertex
-fn vs_print_path_cap(input: PrintPathCapInput, @builtin(vertex_index) index: u32) -> PrintPathOutput {
-    if hidden(input.kind, input.move_z_max) {
-        var out: PrintPathOutput;
-        out.position = CULL_POSITION;
-        return out;
-    }
-
-    return print_path_cap_vertex(input, index);
 }
 
 @fragment

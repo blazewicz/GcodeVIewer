@@ -3,8 +3,8 @@
 //! A [`Renderer`] owns the surface, device, and pipelines for one canvas.
 //! G-code text is parsed through the core query API, flattened into segments,
 //! uploaded to instance buffers, and drawn: non-extruding moves as screen-space
-//! expanded quads, extruding moves as round tubes with domed caps at move
-//! boundaries. The caller drives frames with [`Renderer::render`] and forwards
+//! expanded quads, extruding moves as round tubes with conical caps and start
+//! sockets. The caller drives frames with [`Renderer::render`] and forwards
 //! pointer and resize events through the camera methods, which keeps the
 //! renderer independent of the page's event model.
 
@@ -15,7 +15,7 @@ use web_sys::HtmlCanvasElement;
 use wgpu::util::DeviceExt;
 
 use crate::camera::Camera;
-use crate::shader_contract::{PathInstance, PrintPathCapInstance, Uniforms};
+use crate::shader_contract::{PathInstance, Uniforms};
 use crate::tessellate;
 use crate::tube;
 use crate::visibility::KindMask;
@@ -101,15 +101,12 @@ pub struct Renderer {
     depth_view: wgpu::TextureView,
     travel_path_pipeline: wgpu::RenderPipeline,
     print_path_pipeline: wgpu::RenderPipeline,
-    print_path_cap_pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
     camera_buffer: wgpu::Buffer,
     travel_path_buffer: Option<wgpu::Buffer>,
     travel_path_count: u32,
     print_path_buffer: Option<wgpu::Buffer>,
     print_path_count: u32,
-    print_path_cap_buffer: Option<wgpu::Buffer>,
-    print_path_cap_count: u32,
     camera: Camera,
     line_width: f32,
     extrusion_radius: f32,
@@ -255,18 +252,6 @@ impl Renderer {
                 fragment_entry: "fs_print_path",
             },
         );
-        let print_path_cap_pipeline = create_path_pipeline(
-            &device,
-            &pipeline_layout,
-            &shader,
-            format,
-            PathPipeline {
-                label: "print_path_caps",
-                vertex_layout: PrintPathCapInstance::layout(),
-                vertex_entry: "vs_print_path_cap",
-                fragment_entry: "fs_print_path",
-            },
-        );
 
         let mut camera = Camera::new();
         camera.set_viewport(width as f64, height as f64);
@@ -280,15 +265,12 @@ impl Renderer {
             depth_view,
             travel_path_pipeline,
             print_path_pipeline,
-            print_path_cap_pipeline,
             bind_group,
             camera_buffer,
             travel_path_buffer: None,
             travel_path_count: 0,
             print_path_buffer: None,
             print_path_count: 0,
-            print_path_cap_buffer: None,
-            print_path_cap_count: 0,
             camera,
             line_width: DEFAULT_LINE_WIDTH,
             extrusion_radius: DEFAULT_EXTRUSION_DIAMETER * 0.5,
@@ -320,19 +302,12 @@ impl Renderer {
 
         let mut travel_paths = Vec::new();
         let mut print_paths = Vec::new();
-        let mut print_path_caps = Vec::new();
 
         for segment in segments {
             let path_instance = PathInstance::from_segment(segment);
 
             if segment.extruding {
                 print_paths.push(path_instance);
-
-                for at_end in [false, true] {
-                    if let Some(cap) = PrintPathCapInstance::from_segment_end(&segment, at_end) {
-                        print_path_caps.push(cap);
-                    }
-                }
             } else {
                 travel_paths.push(path_instance);
             }
@@ -340,10 +315,8 @@ impl Renderer {
 
         self.travel_path_count = travel_paths.len().min(u32::MAX as usize) as u32;
         self.print_path_count = print_paths.len().min(u32::MAX as usize) as u32;
-        self.print_path_cap_count = print_path_caps.len().min(u32::MAX as usize) as u32;
         self.travel_path_buffer = upload(&self.device, "travel_paths", travel_paths);
         self.print_path_buffer = upload(&self.device, "print_paths", print_paths);
-        self.print_path_cap_buffer = upload(&self.device, "print_path_caps", print_path_caps);
 
         self.fit();
 
@@ -428,13 +401,7 @@ impl Renderer {
             if let Some(buffer) = &self.print_path_buffer {
                 pass.set_pipeline(&self.print_path_pipeline);
                 pass.set_vertex_buffer(0, buffer.slice(..));
-                pass.draw(0..tube::LATERAL_VERTICES, 0..self.print_path_count);
-            }
-
-            if let Some(buffer) = &self.print_path_cap_buffer {
-                pass.set_pipeline(&self.print_path_cap_pipeline);
-                pass.set_vertex_buffer(0, buffer.slice(..));
-                pass.draw(0..tube::CAP_VERTICES, 0..self.print_path_cap_count);
+                pass.draw(0..tube::PRINT_PATH_VERTICES, 0..self.print_path_count);
             }
         }
 

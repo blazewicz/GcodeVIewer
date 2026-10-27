@@ -10,12 +10,13 @@ arc, and spline segments are colour-coded by kind, and `set_color_by_feed`
 switches to a colour scale over the feedrate range of the loaded file (tunable
 with `set_feed_range` to keep outliers from flattening the scale), leaving moves
 without a known feedrate grey. Pan, zoom, orbit, and fit are exposed to the host
-page. Extruding moves are drawn as round tubes with a
-physical diameter, configurable through `set_extrusion_diameter` (0.2 mm by
-default), domed at each move boundary so separate moves stay visually distinct;
-rapids and non-extruding moves stay thin lines. The renderer takes a canvas
-element and leaves the frame loop to the caller, so a React component only
-needs a ref and a `requestAnimationFrame` loop.
+page. Extruding moves are drawn as round tubes with a physical diameter,
+configurable through `set_extrusion_diameter` (0.2 mm by default). Each segment
+ends in a conical cap and starts with a matching inset socket; pieces of one
+move overlap, while separate moves meet cone-to-rim so they stay visually
+distinct. Rapids and non-extruding moves stay thin lines. The renderer takes a
+canvas element and leaves the frame loop to the caller, so a React component
+only needs a ref and a `requestAnimationFrame` loop.
 
 ```sh
 mise install        # provides wasm-pack and node
