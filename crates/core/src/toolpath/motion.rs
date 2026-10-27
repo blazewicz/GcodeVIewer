@@ -5,9 +5,9 @@
 //! its extrusion, linear or curved. [`Piece`] groups adjacent moves that may be
 //! welded while carrying unparsable lines through verbatim.
 
-use crate::gcode::MoveKind;
+use glam::DVec2 as Point;
 
-use super::point::Point;
+use crate::gcode::MoveKind;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Move<'a> {
@@ -46,7 +46,7 @@ mod tests {
     use crate::test_support::move_between;
 
     fn a() -> Move<'static> {
-        let mut m = move_between(Point(0.0, 0.0), Point(1.0, 0.0), "");
+        let mut m = move_between(Point::new(0.0, 0.0), Point::new(1.0, 0.0), "");
         m.e1 = 1.0;
         m
     }

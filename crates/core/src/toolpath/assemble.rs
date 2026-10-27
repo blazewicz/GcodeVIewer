@@ -1,8 +1,9 @@
 //! Turns the modal state machine's output into continuous move sequences.
 
+use glam::DVec2 as Point;
+
 use crate::Options;
 use crate::gcode::{Chunks, InterpretedMotion, Line, MoveKind, Outcome, State, SyntaxError};
-use crate::toolpath::Point;
 
 use super::motion::{Move, Piece};
 
@@ -233,8 +234,8 @@ impl<'a> Assembler<'a> {
         let is_within_bounds = [x, y, nx, ny].iter().all(|v| v.abs() <= 1e6);
 
         (is_within_bounds && feed > 0.0 && delta_e >= 0.0 && weldable).then_some(Move {
-            start: Point(x, y),
-            end: Point(nx, ny),
+            start: Point::new(x, y),
+            end: Point::new(nx, ny),
             e0,
             e1,
             relative_e: m.relative_e,

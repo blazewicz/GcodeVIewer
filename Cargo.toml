@@ -15,6 +15,7 @@ include = ["crates/core/src/shader/**/*.wesl"]
 
 [workspace.dependencies]
 gcode-viewer = { path = "crates/core" }
+glam = "0.34.1"
 clap = { version = "4", features = ["derive"] }
 env_logger = "0.11"
 rayon = "1.11"

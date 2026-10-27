@@ -6,10 +6,11 @@
 
 use std::f64::consts::FRAC_PI_2;
 
+use glam::DVec2 as Point;
+
 use crate::Options;
 use crate::gcode::MoveKind;
 use crate::toolpath::Move;
-use crate::toolpath::Point;
 
 pub(crate) const RAW: &str = "G1 X9 Y9 E9 F1200\n";
 
@@ -56,7 +57,7 @@ pub(crate) fn arc_points(radius: f64, from: f64, to: f64, segments: usize) -> Ve
     (0..=segments)
         .map(|i| {
             let a = from + (to - from) * i as f64 / segments as f64;
-            Point(radius * a.cos(), radius * a.sin())
+            Point::new(radius * a.cos(), radius * a.sin())
         })
         .collect()
 }
@@ -74,7 +75,7 @@ pub(crate) fn deposit_uniformly(m: &mut [Move<'static>], per_length: f64) {
     let mut e = 0.0;
     for mv in m.iter_mut() {
         mv.e0 = e;
-        e += per_length * (mv.end - mv.start).norm();
+        e += per_length * (mv.end - mv.start).length();
         mv.e1 = e;
     }
 }
