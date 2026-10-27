@@ -9,7 +9,7 @@
 
 use std::f64::consts::{PI, TAU};
 
-use glam::DVec3;
+use glam::{DVec2, DVec3};
 
 use crate::gcode::CurveKind;
 
@@ -58,21 +58,22 @@ fn linearize_arc(
     tolerance: f64,
 ) -> Vec<DVec3> {
     let center = match r {
-        Some(radius) => arc_center_from_radius(start, end, radius, clockwise),
-        None => Some((start.x + i, start.y + j)),
+        Some(radius) => match arc_center_from_radius(start, end, radius, clockwise) {
+            Some(c) => c,
+            None => {
+                return vec![start, end];
+            }
+        },
+        None => DVec2::new(start.x + i, start.y + j),
     };
 
-    let Some((cx, cy)) = center else {
-        return vec![start, end];
-    };
-
-    let radius = (start.x - cx).hypot(start.y - cy);
+    let radius = (start.x - center.x).hypot(start.y - center.y);
     if radius < 1e-12 {
         return vec![start, end];
     }
 
-    let a0 = (start.y - cy).atan2(start.x - cx);
-    let a1 = (end.y - cy).atan2(end.x - cx);
+    let a0 = (start.y - center.y).atan2(start.x - center.x);
+    let a1 = (end.y - center.y).atan2(end.x - center.x);
     let sweep = sweep_between(a0, a1, clockwise);
 
     // Chord deviation of a step is about radius * step^2 / 8, so this keeps it
@@ -87,8 +88,8 @@ fn linearize_arc(
         let t = step as f64 / steps as f64;
         let angle = a0 + sweep * t;
         points.push(DVec3::new(
-            cx + radius * angle.cos(),
-            cy + radius * angle.sin(),
+            center.x + radius * angle.cos(),
+            center.y + radius * angle.sin(),
             start.z + (end.z - start.z) * t,
         ));
     }
@@ -151,15 +152,10 @@ fn sweep_between(a0: f64, a1: f64, clockwise: bool) -> f64 {
 /// Resolves the radius form. The center lies at `r` from both endpoints; two
 /// candidates exist, and the commanded arc is the one no larger than a
 /// semicircle, matching Marlin's radius interpretation.
-fn arc_center_from_radius(
-    start: DVec3,
-    end: DVec3,
-    radius: f64,
-    clockwise: bool,
-) -> Option<(f64, f64)> {
+fn arc_center_from_radius(start: DVec3, end: DVec3, radius: f64, clockwise: bool) -> Option<DVec2> {
     let radius = radius.abs();
-    let (x0, y0) = (start[0], start[1]);
-    let (x1, y1) = (end[0], end[1]);
+    let (x0, y0) = (start.x, start.y);
+    let (x1, y1) = (end.x, end.y);
     let (dx, dy) = (x1 - x0, y1 - y0);
     let chord = dx.hypot(dy);
 
@@ -172,13 +168,13 @@ fn arc_center_from_radius(
     let (px, py) = (-dy / chord, dx / chord);
 
     [
-        (mx + px * height, my + py * height),
-        (mx - px * height, my - py * height),
+        DVec2::new(mx + px * height, my + py * height),
+        DVec2::new(mx - px * height, my - py * height),
     ]
     .into_iter()
-    .find(|&(cx, cy)| {
-        let a0 = (y0 - cy).atan2(x0 - cx);
-        let a1 = (y1 - cy).atan2(x1 - cx);
+    .find(|&c| {
+        let a0 = (y0 - c.y).atan2(x0 - c.x);
+        let a1 = (y1 - c.y).atan2(x1 - c.x);
 
         sweep_between(a0, a1, clockwise).abs() <= PI + 1e-9
     })
