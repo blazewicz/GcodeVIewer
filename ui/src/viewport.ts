@@ -36,11 +36,15 @@ export function attachViewport(
     if (syncCanvasSize(canvas)) {
       api.resize();
     }
-    try {
-      api.render();
-    } catch (error) {
-      onError(`Render failed: ${String(error)}`);
-      return;
+    // The canvas keeps its last image, so a frame is only drawn when the
+    // renderer reports that the image changed.
+    if (api.needsRedraw()) {
+      try {
+        api.render();
+      } catch (error) {
+        onError(`Render failed: ${String(error)}`);
+        return;
+      }
     }
     requestAnimationFrame(frame);
   };

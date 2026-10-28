@@ -4,9 +4,10 @@
 //! window. G-code text is parsed through the core query API, flattened into
 //! segments, uploaded to instance buffers, and drawn: non-extruding moves as
 //! screen-space expanded quads, extruding moves as round tubes with conical
-//! caps and start sockets. The caller drives frames with [`Renderer::render`]
-//! and forwards pointer and resize events through the camera methods, which
-//! keeps the renderer independent of the host's event model.
+//! caps and start sockets. The caller draws a frame with [`Renderer::render`]
+//! when [`Renderer::needs_redraw`] reports that the image changed, and forwards
+//! pointer and resize events through the camera methods, which keeps the
+//! renderer independent of the host's event model.
 
 use bytemuck::Pod;
 use gcode_viewer::MotionRecord;
@@ -102,6 +103,8 @@ pub struct Renderer {
     bounds: Option<(Vec3, Vec3)>,
     moves: usize,
     segments: usize,
+    /// Whether the image changed since the last presented frame.
+    needs_redraw: bool,
 }
 
 impl Renderer {
@@ -251,11 +254,13 @@ impl Renderer {
             bounds: None,
             moves: 0,
             segments: 0,
+            needs_redraw: true,
         })
     }
 
     /// Replaces the rendered toolpath with `text` and frames it.
     pub fn load_gcode(&mut self, text: &str) -> PathStats {
+        self.needs_redraw = true;
         let records = gcode_viewer::motions(text);
         let segments = tessellate::segments(&records);
         let feed_range = tessellate::feed_range(&segments);
@@ -303,6 +308,13 @@ impl Renderer {
             feed_max,
             has_feed,
         }
+    }
+
+    /// Whether the view or toolpath changed since the last presented frame.
+    /// Redrawing an unchanged image is pure waste, so the caller can skip
+    /// [`Renderer::render`] until this reports `true`.
+    pub fn needs_redraw(&self) -> bool {
+        self.needs_redraw
     }
 
     /// Draws one frame and presents it.
@@ -381,6 +393,9 @@ impl Renderer {
 
         self.queue.submit(Some(encoder.finish()));
         self.queue.present(frame);
+        // Only clear the flag once the frame is on screen: every early return
+        // above leaves it set so the caller retries the draw.
+        self.needs_redraw = false;
 
         Ok(())
     }
@@ -395,6 +410,7 @@ impl Renderer {
             return;
         }
 
+        self.needs_redraw = true;
         self.config.width = width;
         self.config.height = height;
         self.recreate_swapchain();
@@ -405,29 +421,34 @@ impl Renderer {
     /// Frames the whole toolpath.
     pub fn fit(&mut self) {
         if let Some((min, max)) = self.bounds {
+            self.needs_redraw = true;
             self.camera.fit(min, max, FIT_MARGIN);
         }
     }
 
     /// Drags the view by a pointer delta in device pixels.
     pub fn pan(&mut self, dx: f32, dy: f32) {
+        self.needs_redraw = true;
         self.camera.pan(Vec2::new(dx, dy));
     }
 
     /// Scales the view around a device-pixel position.
     pub fn zoom(&mut self, factor: f32, x: f32, y: f32) {
+        self.needs_redraw = true;
         self.camera.zoom_at(factor, Vec2::new(x, y));
     }
 
     /// Orbits the view around the toolpath. Yaw and pitch deltas are in
     /// radians.
     pub fn orbit(&mut self, delta_yaw: f32, delta_pitch: f32) {
+        self.needs_redraw = true;
         self.camera.orbit(delta_yaw, delta_pitch);
     }
 
     /// Sets the line width in device pixels.
     pub fn set_line_width(&mut self, width: f32) {
         self.line_width = width.clamp(0.5, 8.0);
+        self.needs_redraw = true;
     }
 
     /// Sets the cross-section diameter of extruding moves in millimetres. The
@@ -435,6 +456,7 @@ impl Renderer {
     /// toolpath while zooming.
     pub fn set_extrusion_diameter(&mut self, diameter: f32) {
         self.extrusion_radius = diameter.clamp(0.01, 10.0) * 0.5;
+        self.needs_redraw = true;
     }
 
     /// Hides every move whose highest Z exceeds `z` millimetres. A move is
@@ -442,12 +464,14 @@ impl Renderer {
     /// half.
     pub fn set_z_max(&mut self, z: f32) {
         self.z_max = z;
+        self.needs_redraw = true;
     }
 
     /// Shows or hides every segment of `kind`, where `kind` is the palette
     /// index: rapid, feed, arc, spline. Out-of-range indices are ignored.
     pub fn set_kind_visible(&mut self, kind: u32, visible: bool) {
         self.kind_mask.set(kind, visible);
+        self.needs_redraw = true;
     }
 
     /// Colours segments by their active feedrate when `by_feed` is true,
@@ -455,6 +479,7 @@ impl Renderer {
     /// colours them by move kind. Segments without a feedrate stay grey.
     pub fn set_color_by_feed(&mut self, by_feed: bool) {
         self.color_by_feed = by_feed;
+        self.needs_redraw = true;
     }
 
     /// Narrows or widens the feedrate colour scale to `min..=max` mm/min, so
@@ -467,6 +492,7 @@ impl Renderer {
         }
         self.feed_min = min;
         self.feed_max = max;
+        self.needs_redraw = true;
     }
 
     fn write_camera(&self) {

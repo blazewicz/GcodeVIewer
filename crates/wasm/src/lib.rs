@@ -122,6 +122,12 @@ impl Renderer {
         self.inner.render().map_err(js_error)
     }
 
+    /// Whether the view or toolpath changed since the last presented frame.
+    /// The host can skip [`Renderer::render`] until this reports `true`.
+    pub fn needs_redraw(&self) -> bool {
+        self.inner.needs_redraw()
+    }
+
     /// Reconfigures the surface after the canvas backing size changed.
     pub fn resize(&mut self) {
         self.inner

@@ -12,6 +12,8 @@ export interface LoadResult {
 
 export interface RendererApi {
   loadGcode(text: string): LoadResult;
+  /** Whether the rendered image changed since the last `render` call. */
+  needsRedraw(): boolean;
   render(): void;
   resize(): void;
   fit(): void;
@@ -44,6 +46,7 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<Rendere
       };
     },
     render: () => renderer.render(),
+    needsRedraw: () => renderer.needs_redraw(),
     resize: () => renderer.resize(),
     fit: () => renderer.fit(),
     pan: (dx, dy) => renderer.pan(dx, dy),
