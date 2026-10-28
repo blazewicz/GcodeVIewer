@@ -307,16 +307,25 @@ impl Renderer {
 
     /// Draws one frame and presents it.
     pub fn render(&mut self) -> Result<(), RendererError> {
-        let frame = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(frame)
-            | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
-            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-                self.recreate_swapchain();
-                return Ok(());
+        // A stale swap chain is reconfigured and retried once; the retry keeps
+        // the caller from seeing an empty frame right after a resize.
+        let mut retried = false;
+        let frame = loop {
+            match self.surface.get_current_texture() {
+                wgpu::CurrentSurfaceTexture::Success(frame)
+                | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => break frame,
+                wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost
+                    if !retried =>
+                {
+                    retried = true;
+                    self.recreate_swapchain();
+                }
+                wgpu::CurrentSurfaceTexture::Outdated
+                | wgpu::CurrentSurfaceTexture::Lost
+                | wgpu::CurrentSurfaceTexture::Timeout
+                | wgpu::CurrentSurfaceTexture::Occluded
+                | wgpu::CurrentSurfaceTexture::Validation => return Ok(()),
             }
-            wgpu::CurrentSurfaceTexture::Timeout
-            | wgpu::CurrentSurfaceTexture::Occluded
-            | wgpu::CurrentSurfaceTexture::Validation => return Ok(()),
         };
 
         self.write_camera();

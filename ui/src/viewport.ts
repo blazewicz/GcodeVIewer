@@ -6,11 +6,22 @@ function pixelRatio(): number {
   return window.devicePixelRatio || 1;
 }
 
-export function resizeCanvas(canvas: HTMLCanvasElement): void {
+/**
+ * Matches the canvas backing store to its CSS box and reports whether it
+ * changed. Assigning `width`/`height` clears the canvas and resets the swap
+ * chain, so the caller must redraw in the same task.
+ */
+export function syncCanvasSize(canvas: HTMLCanvasElement): boolean {
   const ratio = pixelRatio();
   const rect = canvas.getBoundingClientRect();
-  canvas.width = Math.max(1, Math.round(rect.width * ratio));
-  canvas.height = Math.max(1, Math.round(rect.height * ratio));
+  const width = Math.max(1, Math.round(rect.width * ratio));
+  const height = Math.max(1, Math.round(rect.height * ratio));
+  if (width === canvas.width && height === canvas.height) {
+    return false;
+  }
+  canvas.width = width;
+  canvas.height = height;
+  return true;
 }
 
 export function attachViewport(
@@ -18,12 +29,13 @@ export function attachViewport(
   api: RendererApi,
   onError: (message: string) => void,
 ): void {
-  new ResizeObserver(() => {
-    resizeCanvas(canvas);
-    api.resize();
-  }).observe(canvas);
-
   const frame = (): void => {
+    // Resizing clears the canvas, so it has to happen here, immediately before
+    // the draw: a ResizeObserver callback runs after the animation frame
+    // callbacks but before paint, which would composite the cleared canvas.
+    if (syncCanvasSize(canvas)) {
+      api.resize();
+    }
     try {
       api.render();
     } catch (error) {

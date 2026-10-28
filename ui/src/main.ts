@@ -2,7 +2,7 @@ import "./style.css";
 import { createControls, renderControls } from "./controls";
 import { createRenderer } from "./renderer";
 import { colorByFeed, feedLegendVisible, hasFeed, stats, zLabel, zWindow } from "./state";
-import { attachViewport, resizeCanvas } from "./viewport";
+import { attachViewport, syncCanvasSize } from "./viewport";
 
 function requireElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
@@ -22,7 +22,7 @@ const feedMin = requireElement<HTMLInputElement>("feed-min");
 const feedMax = requireElement<HTMLInputElement>("feed-max");
 const fileInput = requireElement<HTMLInputElement>("file");
 
-resizeCanvas(canvas);
+syncCanvasSize(canvas);
 
 const api = await createRenderer(canvas).catch((error: unknown) => {
   statsText.textContent = `Renderer failed: ${String(error)}`;
