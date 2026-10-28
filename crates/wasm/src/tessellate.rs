@@ -2,11 +2,11 @@
 //!
 //! The renderer draws instanced geometry, so every curved move is flattened
 //! here once per load through the core [`linearize_curve`] routine. Linear moves
-//! map to one segment; arcs are subdivided to a chord tolerance and splines to
-//! a fixed sample count. Segments keep their Z so the camera can orbit the
-//! toolpath in three dimensions, and carry their move kind so the shader can
-//! colour rapids, feeds, arcs, and splines separately. Segments also record
-//! whether the move deposits material, which the renderer uses to choose
+//! map to one segment; arcs are subdivided to a chord tolerance and splines
+//! follow Marlin's adaptive sampler. Segments keep their Z so the camera can
+//! orbit the toolpath in three dimensions, and carry their move kind so the
+//! shader can colour rapids, feeds, arcs, and splines separately. Segments also
+//! record whether the move deposits material, which the renderer uses to choose
 //! between a thin line and a round tube, and the active feedrate, which the
 //! shader maps onto a colour scale.
 
@@ -16,8 +16,6 @@ use gcode_viewer::{MotionRecord, MoveKind, linearize_curve};
 
 /// Target chord deviation when flattening arcs, in millimetres.
 const ARC_CHORD_TOLERANCE: f64 = 0.05;
-/// Bézier samples per spline.
-const SPLINE_SEGMENTS: usize = 64;
 /// Global bound so a huge file cannot exhaust browser memory.
 const MAX_SEGMENTS: usize = 8_000_000;
 
@@ -114,13 +112,7 @@ fn push_record(record: &MotionRecord, out: &mut Vec<Segment>) {
     let feed = record.feed.map(|f| f as f32);
     let first = out.len();
 
-    let points = linearize_curve(
-        record.curve,
-        start,
-        end,
-        ARC_CHORD_TOLERANCE,
-        SPLINE_SEGMENTS,
-    );
+    let points = linearize_curve(record.curve, start, end, ARC_CHORD_TOLERANCE);
     let kind = Kind::of(record.kind);
 
     for pair in points.windows(2) {

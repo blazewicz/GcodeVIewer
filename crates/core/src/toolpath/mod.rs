@@ -1,4 +1,6 @@
 mod assemble;
+mod lin_arc;
+mod lin_bezier_cubic;
 mod linearize;
 mod motion;
 
