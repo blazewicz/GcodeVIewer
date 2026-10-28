@@ -35,11 +35,11 @@ pub fn linearize_curve(
 ) -> Vec<DVec3> {
     match curve {
         Some(CurveKind::Arc { clockwise, i, j, r }) => {
-            linearize_arc(start, end, i, j, r, clockwise, tolerance)
+            linearize_xy_arc(start, end, i, j, r, clockwise, tolerance)
         }
 
         Some(CurveKind::Spline { i, j, p, q }) => {
-            linearize_spline(start, end, i, j, p, q, spline_samples)
+            linearize_xy_bezier_cubic(start, end, i, j, p, q, spline_samples)
         }
 
         _ => vec![start, end],
@@ -48,7 +48,7 @@ pub fn linearize_curve(
 
 /// Linearizes one arc. The center comes from the `i`/`j` offsets, or from the
 /// radius form when `r` is present; a degenerate shape falls back to a chord.
-fn linearize_arc(
+fn linearize_xy_arc(
     start: DVec3,
     end: DVec3,
     i: f64,
@@ -100,7 +100,7 @@ fn linearize_arc(
 
 /// Linearizes one cubic Bézier with control points offset from the start
 /// (`i`/`j`) and from the end (`p`/`q`).
-fn linearize_spline(
+fn linearize_xy_bezier_cubic(
     start: DVec3,
     end: DVec3,
     i: f64,
@@ -109,8 +109,10 @@ fn linearize_spline(
     q: f64,
     samples: usize,
 ) -> Vec<DVec3> {
-    let c1 = [start[0] + i, start[1] + j];
-    let c2 = [end[0] + p, end[1] + q];
+    let p0 = start.xy();
+    let p1 = end.xy();
+    let c1 = p0 + DVec2::new(i, j);
+    let c2 = p1 + DVec2::new(p, q);
 
     let mut points = Vec::with_capacity(samples + 1);
     points.push(start);
@@ -118,17 +120,10 @@ fn linearize_spline(
     for step in 1..=samples {
         let t = step as f64 / samples as f64;
         let u = 1.0 - t;
-        points.push(DVec3::new(
-            u * u * u * start[0]
-                + 3.0 * u * u * t * c1[0]
-                + 3.0 * u * t * t * c2[0]
-                + t * t * t * end[0],
-            u * u * u * start[1]
-                + 3.0 * u * u * t * c1[1]
-                + 3.0 * u * t * t * c2[1]
-                + t * t * t * end[1],
-            start[2] + (end[2] - start[2]) * t,
-        ));
+        let b = u * u * u * p0 + 3.0 * u * u * t * c1 + 3.0 * u * t * t * c2 + t * t * t * p1;
+        let z = start.z + (end.z - start.z) * t;
+
+        points.push(b.extend(z))
     }
 
     points
