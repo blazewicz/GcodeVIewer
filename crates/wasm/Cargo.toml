@@ -1,56 +1,29 @@
 [package]
 name = "gcode-viewer-wasm"
-description = "WebAssembly wgpu renderer for G-code toolpaths"
+description = "WebAssembly bindings for the G-code toolpath renderer"
 version = { workspace = true }
 edition = { workspace = true }
 rust-version = { workspace = true }
 publish = false
-
-[package.metadata.wgsl-analyzer]
-edition = "2026_pre"
-package-manager = "cargo"
-root = "./src/shader"
-include = ["src/shader/**/*.wesl"]
 
 [lib]
 name = "gcode_viewer_wasm"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-gcode-viewer = { workspace = true }
-glam = { workspace = true }
-log = { workspace = true }
-wesl-core = { workspace = true }
+gcode-viewer-renderer = { workspace = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-bytemuck = { workspace = true, features = ["derive"] }
 console_error_panic_hook = { workspace = true }
-js-sys = { workspace = true }
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
-web-sys = { workspace = true, features = [
-    "CssStyleDeclaration",
-    "Document",
-    "DomRect",
-    "Element",
-    "HtmlCanvasElement",
-    "Window",
-    "console",
-] }
+web-sys = { workspace = true, features = ["HtmlCanvasElement"] }
 wgpu = { workspace = true, default-features = false, features = [
     "std",
     "webgl",
     "webgpu",
     "wgsl",
 ] }
-
-[build-dependencies]
-naga = { workspace = true }
-wesl = "0.6"
-
-[dev-dependencies]
-naga = { workspace = true }
-rstest = { workspace = true }
 
 [lints]
 workspace = true

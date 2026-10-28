@@ -36,23 +36,29 @@ ci-core:
 ci-cli:
     cargo test --locked -p gcode-viewer-cli
 
-# WebAssembly renderer: wasm32 lint plus host-side tests.
+# Renderer crate: native lint plus host-side tests.
+ci-renderer:
+    cargo clippy --locked -p gcode-viewer-renderer --all-targets -- -D warnings
+    cargo test --locked -p gcode-viewer-renderer
+
+# WebAssembly bindings: wasm32 lint for the wrapper and renderer.
 ci-wasm:
+    cargo clippy --locked -p gcode-viewer-renderer --target wasm32-unknown-unknown --all-targets -- -D warnings
     cargo clippy --locked -p gcode-viewer-wasm --target wasm32-unknown-unknown --all-targets -- -D warnings
-    cargo test --locked -p gcode-viewer-wasm
 
 # Full local mirror of .github/workflows/test.yml.
-ci: ci-lint ci-core ci-wasm
+ci: ci-lint ci-core ci-renderer ci-wasm
 
 # Install the wasm32 target needed by the renderer checks.
 wasm-target:
     rustup target add wasm32-unknown-unknown
 
-# Lint the WASM renderer against the wasm32 target.
+# Lint the renderer and WASM bindings against the wasm32 target.
 wasm-check:
+    cargo clippy -p gcode-viewer-renderer --target wasm32-unknown-unknown --all-targets
     cargo clippy -p gcode-viewer-wasm --target wasm32-unknown-unknown --all-targets
 
-# Build the WASM renderer package for the Vite demo.
+# Build the WASM binding package for the Vite demo.
 wasm:
     wasm-pack build crates/wasm --target web --out-dir ../../ui/pkg
 

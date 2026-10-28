@@ -2,7 +2,7 @@
 //!
 //! The mask reaches the shader as one `u32`, where bit `Kind as u32` decides
 //! whether segments of that kind are drawn. The bit arithmetic lives here so
-//! the host tests can cover it: the renderer itself only builds for wasm32.
+//! it stays independent of the GPU pipeline and is covered by host tests.
 
 use crate::tessellate::Kind;
 

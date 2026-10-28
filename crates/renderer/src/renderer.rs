@@ -1,18 +1,16 @@
-//! The wasm-facing wgpu renderer.
+//! The platform-neutral wgpu renderer.
 //!
-//! A [`Renderer`] owns the surface, device, and pipelines for one canvas.
-//! G-code text is parsed through the core query API, flattened into segments,
-//! uploaded to instance buffers, and drawn: non-extruding moves as screen-space
-//! expanded quads, extruding moves as round tubes with conical caps and start
-//! sockets. The caller drives frames with [`Renderer::render`] and forwards
-//! pointer and resize events through the camera methods, which keeps the
-//! renderer independent of the page's event model.
+//! A [`Renderer`] owns the surface, device, and pipelines for one canvas or
+//! window. G-code text is parsed through the core query API, flattened into
+//! segments, uploaded to instance buffers, and drawn: non-extruding moves as
+//! screen-space expanded quads, extruding moves as round tubes with conical
+//! caps and start sockets. The caller drives frames with [`Renderer::render`]
+//! and forwards pointer and resize events through the camera methods, which
+//! keeps the renderer independent of the host's event model.
 
 use bytemuck::Pod;
 use gcode_viewer::MotionRecord;
 use glam::{Vec2, Vec3};
-use wasm_bindgen::prelude::*;
-use web_sys::HtmlCanvasElement;
 use wgpu::util::DeviceExt;
 
 use crate::camera::Camera;
@@ -35,66 +33,49 @@ const BACKGROUND: wgpu::Color = wgpu::Color {
     a: 1.0,
 };
 
+/// Initial surface size and device limits for a [`Renderer`].
+#[derive(Clone, Debug)]
+pub struct RendererOptions {
+    /// Surface width in device pixels.
+    pub width: u32,
+    /// Surface height in device pixels.
+    pub height: u32,
+    /// Device limits to request. The caller chooses these because they depend
+    /// on the target; `wgpu::Limits::default()` is a portable baseline.
+    pub limits: wgpu::Limits,
+}
+
+/// Errors that can occur while creating a renderer.
+#[derive(Debug, thiserror::Error)]
+pub enum RendererError {
+    /// No graphics adapter compatible with the surface was found.
+    #[error("no suitable graphics adapter: {0}")]
+    Adapter(#[from] wgpu::RequestAdapterError),
+    /// The adapter could not provide a device and queue.
+    #[error("failed to create graphics device: {0}")]
+    Device(#[from] wgpu::RequestDeviceError),
+}
+
 /// Summary of the last [`Renderer::load_gcode`] call.
-#[wasm_bindgen]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PathStats {
-    moves: usize,
-    segments: usize,
-    z_min: f64,
-    z_max: f64,
-    feed_min: f64,
-    feed_max: f64,
-    has_feed: bool,
-}
-
-#[wasm_bindgen]
-impl PathStats {
     /// Number of motion records parsed from the file.
-    #[wasm_bindgen(getter)]
-    pub fn moves(&self) -> usize {
-        self.moves
-    }
-
+    pub moves: usize,
     /// Number of drawable segments after flattening.
-    #[wasm_bindgen(getter)]
-    pub fn segments(&self) -> usize {
-        self.segments
-    }
-
+    pub segments: usize,
     /// Lowest Z of any located move, in millimetres.
-    #[wasm_bindgen(getter)]
-    pub fn z_min(&self) -> f64 {
-        self.z_min
-    }
-
+    pub z_min: f64,
     /// Highest Z of any located move, in millimetres.
-    #[wasm_bindgen(getter)]
-    pub fn z_max(&self) -> f64 {
-        self.z_max
-    }
-
+    pub z_max: f64,
     /// Lowest known feedrate, in mm/min. Zero when the file carries none.
-    #[wasm_bindgen(getter)]
-    pub fn feed_min(&self) -> f64 {
-        self.feed_min
-    }
-
+    pub feed_min: f64,
     /// Highest known feedrate, in mm/min. Zero when the file carries none.
-    #[wasm_bindgen(getter)]
-    pub fn feed_max(&self) -> f64 {
-        self.feed_max
-    }
-
+    pub feed_max: f64,
     /// Whether any move carries a feedrate, so the feed legend has a range.
-    #[wasm_bindgen(getter)]
-    pub fn has_feed(&self) -> bool {
-        self.has_feed
-    }
+    pub has_feed: bool,
 }
 
-#[wasm_bindgen]
 pub struct Renderer {
-    canvas: HtmlCanvasElement,
     surface: wgpu::Surface<'static>,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -123,25 +104,16 @@ pub struct Renderer {
     segments: usize,
 }
 
-#[wasm_bindgen]
 impl Renderer {
-    /// Creates a renderer attached to `canvas`. The canvas backing size must
-    /// already be set in device pixels.
-    pub async fn create(canvas: HtmlCanvasElement) -> Result<Renderer, JsValue> {
-        console_error_panic_hook::set_once();
-
-        let width = canvas.width().max(1);
-        let height = canvas.height().max(1);
-
-        let instance = wgpu::util::new_instance_with_webgpu_detection(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL,
-            ..wgpu::InstanceDescriptor::new_without_display_handle()
-        })
-        .await;
-
-        let surface = instance
-            .create_surface(wgpu::SurfaceTarget::Canvas(canvas.clone()))
-            .map_err(js_error)?;
+    /// Creates a renderer for `surface`, whose backing size must already be set
+    /// in device pixels.
+    pub async fn new(
+        instance: &wgpu::Instance,
+        surface: wgpu::Surface<'static>,
+        options: RendererOptions,
+    ) -> Result<Renderer, RendererError> {
+        let width = options.width.max(1);
+        let height = options.height.max(1);
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -150,21 +122,18 @@ impl Renderer {
                 compatible_surface: Some(&surface),
                 apply_limit_buckets: false,
             })
-            .await
-            .map_err(js_error)?;
+            .await?;
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("gcode-viewer"),
                 required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::downlevel_webgl2_defaults()
-                    .using_resolution(adapter.limits()),
+                required_limits: options.limits.using_resolution(adapter.limits()),
                 memory_hints: wgpu::MemoryHints::default(),
                 trace: wgpu::Trace::Off,
                 ..Default::default()
             })
-            .await
-            .map_err(js_error)?;
+            .await?;
 
         let caps = surface.get_capabilities(&adapter);
         let format = caps
@@ -258,7 +227,6 @@ impl Renderer {
         camera.set_viewport(Vec2::new(width as f32, height as f32));
 
         Ok(Renderer {
-            canvas,
             surface,
             device,
             queue,
@@ -338,7 +306,7 @@ impl Renderer {
     }
 
     /// Draws one frame and presents it.
-    pub fn render(&mut self) -> Result<(), JsValue> {
+    pub fn render(&mut self) -> Result<(), RendererError> {
         self.write_camera();
 
         let frame = match self.surface.get_current_texture() {
@@ -409,10 +377,11 @@ impl Renderer {
         Ok(())
     }
 
-    /// Reconfigures the surface after the canvas backing size changed.
-    pub fn resize(&mut self) {
-        let width = self.canvas.width().max(1);
-        let height = self.canvas.height().max(1);
+    /// Reconfigures the surface after the backing size changed. The size is in
+    /// device pixels.
+    pub fn resize(&mut self, width: u32, height: u32) {
+        let width = width.max(1);
+        let height = height.max(1);
 
         if width == self.config.width && height == self.config.height {
             return;
@@ -434,39 +403,38 @@ impl Renderer {
     }
 
     /// Drags the view by a pointer delta in device pixels.
-    pub fn pan(&mut self, dx: f64, dy: f64) {
-        self.camera.pan(Vec2::new(dx as f32, dy as f32));
+    pub fn pan(&mut self, dx: f32, dy: f32) {
+        self.camera.pan(Vec2::new(dx, dy));
     }
 
     /// Scales the view around a device-pixel position.
-    pub fn zoom(&mut self, factor: f64, x: f64, y: f64) {
-        self.camera
-            .zoom_at(factor as f32, Vec2::new(x as f32, y as f32));
+    pub fn zoom(&mut self, factor: f32, x: f32, y: f32) {
+        self.camera.zoom_at(factor, Vec2::new(x, y));
     }
 
     /// Orbits the view around the toolpath. Yaw and pitch deltas are in
     /// radians.
-    pub fn orbit(&mut self, delta_yaw: f64, delta_pitch: f64) {
-        self.camera.orbit(delta_yaw as f32, delta_pitch as f32);
+    pub fn orbit(&mut self, delta_yaw: f32, delta_pitch: f32) {
+        self.camera.orbit(delta_yaw, delta_pitch);
     }
 
     /// Sets the line width in device pixels.
-    pub fn set_line_width(&mut self, width: f64) {
-        self.line_width = (width as f32).clamp(0.5, 8.0);
+    pub fn set_line_width(&mut self, width: f32) {
+        self.line_width = width.clamp(0.5, 8.0);
     }
 
     /// Sets the cross-section diameter of extruding moves in millimetres. The
     /// diameter is physical, so print lines keep their size relative to the
     /// toolpath while zooming.
-    pub fn set_extrusion_diameter(&mut self, diameter: f64) {
-        self.extrusion_radius = (diameter as f32).clamp(0.01, 10.0) * 0.5;
+    pub fn set_extrusion_diameter(&mut self, diameter: f32) {
+        self.extrusion_radius = diameter.clamp(0.01, 10.0) * 0.5;
     }
 
     /// Hides every move whose highest Z exceeds `z` millimetres. A move is
     /// drawn whole or not at all, so the boundary never cuts a tube or line in
     /// half.
-    pub fn set_z_max(&mut self, z: f64) {
-        self.z_max = z as f32;
+    pub fn set_z_max(&mut self, z: f32) {
+        self.z_max = z;
     }
 
     /// Shows or hides every segment of `kind`, where `kind` is the palette
@@ -486,12 +454,12 @@ impl Renderer {
     /// outliers do not flatten the interesting part of the range. Non-finite or
     /// inverted bounds are ignored. Loading a file resets the scale to that
     /// file's feedrate range.
-    pub fn set_feed_range(&mut self, min: f64, max: f64) {
+    pub fn set_feed_range(&mut self, min: f32, max: f32) {
         if !min.is_finite() || !max.is_finite() || max <= min {
             return;
         }
-        self.feed_min = min as f32;
-        self.feed_max = max as f32;
+        self.feed_min = min;
+        self.feed_max = max;
     }
 
     fn write_camera(&self) {
@@ -580,10 +548,6 @@ fn upload<T: Pod>(device: &wgpu::Device, label: &str, instances: Vec<T>) -> Opti
             usage: wgpu::BufferUsages::VERTEX,
         })
     })
-}
-
-fn js_error(error: impl std::fmt::Display) -> JsValue {
-    JsValue::from_str(&error.to_string())
 }
 
 /// A depth attachment matching the surface size. Depth ordering keeps far

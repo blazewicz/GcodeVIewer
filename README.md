@@ -2,26 +2,30 @@
 
 Browser-based viewer with limited editing functionality for G-code.
 
-## Web renderer (WASM + wgpu)
+## Renderer (wgpu + WASM)
 
-`crates/wasm` builds a WebAssembly binding that parses G-code through the core
-query API (`motions`) and draws the toolpath on a canvas with wgpu. Rapid, feed,
-arc, and spline segments are colour-coded by kind, and `set_color_by_feed`
-switches to a colour scale over the feedrate range of the loaded file (tunable
-with `set_feed_range` to keep outliers from flattening the scale), leaving moves
-without a known feedrate grey. Pan, zoom, orbit, and fit are exposed to the host
-page. Extruding moves are drawn as round tubes with a physical diameter,
-configurable through `set_extrusion_diameter` (0.2 mm by default). Each segment
-ends in a conical cap and starts with a matching inset socket; pieces of one
-move overlap, while separate moves meet cone-to-rim so they stay visually
-distinct. Rapids and non-extruding moves stay thin lines. The renderer takes a
-canvas element and leaves the frame loop to the caller, so a React component
-only needs a ref and a `requestAnimationFrame` loop.
+`crates/renderer` parses G-code through the core query API (`motions`) and draws
+the toolpath with wgpu. It is platform-neutral: callers provide a wgpu instance
+and surface, so the same renderer code compiles for native targets as well as
+the browser. `crates/wasm` is a thin `wasm-bindgen` wrapper that creates the
+canvas surface and forwards calls to the renderer.
+
+Rapid, feed, arc, and spline segments are colour-coded by kind, and
+`set_color_by_feed` switches to a colour scale over the feedrate range of the
+loaded file (tunable with `set_feed_range` to keep outliers from flattening the
+scale), leaving moves without a known feedrate grey. Pan, zoom, orbit, and fit
+are exposed to the host page. Extruding moves are drawn as round tubes with a
+physical diameter, configurable through `set_extrusion_diameter` (0.2 mm by
+default). Each segment ends in a conical cap and starts with a matching inset
+socket; pieces of one move overlap, while separate moves meet cone-to-rim so
+they stay visually distinct. Rapids and non-extruding moves stay thin lines. The
+WASM binding takes a canvas element and leaves the frame loop to the caller, so
+a React component only needs a ref and a `requestAnimationFrame` loop.
 
 ```sh
 mise install        # provides wasm-pack and node
 just wasm-target    # once: rustup target add wasm32-unknown-unknown
-just demo           # builds crates/wasm and serves the Vite demo
+just ui             # builds crates/wasm and serves the Vite demo
 ```
 
 ```ts
@@ -38,8 +42,8 @@ function frame() {
 requestAnimationFrame(frame);
 ```
 
-`just wasm-check` lints the crate for the wasm32 target, and `just wasm` builds
-the package into `ui/pkg` for the Vite app.
+`just wasm-check` lints the renderer and binding for the wasm32 target, and
+`just wasm` builds the package into `ui/pkg` for the Vite app.
 
 ## Development
 

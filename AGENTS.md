@@ -2,7 +2,8 @@
 
 Browser-based viewer with limited editing functionality for G-code.
 
-Core built with Rust using WASM and WebGPU. UI built with TypeScript, managed with vite.
+Core and renderer built with Rust using wgpu; the browser binding is compiled to WASM.
+UI built with TypeScript, managed with vite.
 
 Currently supported G-code flavors:
 * [Marlin Firmware](https://marlinfw.org/docs/gcode/)
@@ -12,7 +13,8 @@ Currently supported G-code flavors:
 ```
 .github/         GitHub Actions CI config
 crates/core/     Core G-code logic, parser, state machine
-crates/wasm/     WebAssembly wgpu renderer binding
+crates/renderer/ Platform-neutral wgpu renderer, shaders, camera and tessellation
+crates/wasm/     Thin WebAssembly binding around the renderer
 ui/              Browser UI
 zzz_artifacts/   Local artifacts - never committed to the repo
 AGENTS.md        This file
@@ -35,15 +37,16 @@ just clippy       # lint Rust code
 just test         # run Rust tests
 
 # WASM and UI specific commands
-just wasm         # build the WASM renderer package
-just wasm-check   # lint the WASM renderer for wasm32
+just wasm         # build the WASM binding package
+just wasm-check   # lint the renderer and WASM binding for wasm32
 just ui           # run the UI dev server
 
 # Commands used in CI runs
 just ci           # every ci-* recipe below, mirroring .github/workflows/test.yml
 just ci-lint      # format + native clippy; no Python runtime needed
 just ci-core      # core library tests
-just ci-wasm      # wasm32 clippy + renderer host tests
+just ci-renderer  # native renderer lint and host-side tests
+just ci-wasm      # wasm32 clippy for the renderer and binding
 ```
 
 ## Writing code and docs
@@ -51,7 +54,7 @@ just ci-wasm      # wasm32 clippy + renderer host tests
 Write files as standalone artifacts without leaving references to the conversation they
 originated from. If some idea was discussed and rejected it must be omitted. Never leave
 comments like "We do not do X.", unless X is otherwise implied by the context of the
-fie. Always assume that the files you write will be viewed by someone who did not
+file. Always assume that the files you write will be viewed by someone who did not
 partake in the process of developing them.
 
 Write clean and idiomatic code in any language you use. Use modern syntax and tools,

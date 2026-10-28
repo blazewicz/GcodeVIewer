@@ -39,6 +39,7 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/master' }}
       - run: just ci-core
+      - run: just ci-renderer
 
   wasm:
     runs-on: ubuntu-latest
