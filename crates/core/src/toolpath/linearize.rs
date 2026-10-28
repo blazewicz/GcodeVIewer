@@ -37,7 +37,9 @@ pub fn linearize_curve(
             linearize_xy_arc(start, end, DVec2::new(i, j), r, clockwise, tolerance)
         }
 
-        Some(CurveKind::Spline { i, j, p, q }) => linearize_xy_bezier_cubic(start, end, i, j, p, q),
+        Some(CurveKind::Spline { i, j, p, q }) => {
+            linearize_xy_bezier_cubic(start, end, DVec2::new(i, j), DVec2::new(p, q))
+        }
 
         _ => vec![start, end],
     }

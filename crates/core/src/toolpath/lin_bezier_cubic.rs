@@ -20,15 +20,13 @@ const MARLIN_SIGMA: f64 = 0.1;
 pub(super) fn linearize_xy_bezier_cubic(
     start: DVec3,
     end: DVec3,
-    i: f64,
-    j: f64,
-    p: f64,
-    q: f64,
+    ij: DVec2,
+    pq: DVec2,
 ) -> Vec<DVec3> {
     let p0 = start.xy();
     let p1 = end.xy();
-    let c1 = p0 + DVec2::new(i, j);
-    let c2 = p1 + DVec2::new(p, q);
+    let c1 = p0 + ij;
+    let c2 = p1 + pq;
 
     let mut points = vec![start];
     // Marlin's `bez_target`: the last emitted point, where the next chord
@@ -129,10 +127,8 @@ mod test {
         let points = linearize_xy_bezier_cubic(
             DVec3::new(0.0, 0.0, 0.0),
             DVec3::new(10.0, 0.0, 0.0),
-            3.0,
-            5.0,
-            -3.0,
-            5.0,
+            DVec2::new(3.0, 5.0),
+            DVec2::new(-3.0, 5.0),
         );
 
         assert_eq!(points[0], DVec3::new(0.0, 0.0, 0.0));
@@ -160,10 +156,8 @@ mod test {
         let points = linearize_xy_bezier_cubic(
             DVec3::new(0.0, 0.0, 0.0),
             DVec3::new(10.0, 0.0, 2.0),
-            3.0,
-            5.0,
-            -3.0,
-            5.0,
+            DVec2::new(3.0, 5.0),
+            DVec2::new(-3.0, 5.0),
         );
 
         assert_eq!(
@@ -198,10 +192,8 @@ mod test {
         let points = linearize_xy_bezier_cubic(
             DVec3::new(0.0, 0.0, 0.0),
             DVec3::new(9.0, 0.0, 1.0),
-            3.0,
-            0.0,
-            -3.0,
-            0.0,
+            DVec2::new(3.0, 0.0),
+            DVec2::new(-3.0, 0.0),
         );
 
         assert_eq!(
