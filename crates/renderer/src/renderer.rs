@@ -307,20 +307,19 @@ impl Renderer {
 
     /// Draws one frame and presents it.
     pub fn render(&mut self) -> Result<(), RendererError> {
-        self.write_camera();
-
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame)
             | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
             wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-                self.surface.configure(&self.device, &self.config);
-                self.depth_view = create_depth_view(&self.device, &self.config);
+                self.recreate_swapchain();
                 return Ok(());
             }
             wgpu::CurrentSurfaceTexture::Timeout
             | wgpu::CurrentSurfaceTexture::Occluded
             | wgpu::CurrentSurfaceTexture::Validation => return Ok(()),
         };
+
+        self.write_camera();
 
         let view = frame
             .texture
@@ -389,8 +388,7 @@ impl Renderer {
 
         self.config.width = width;
         self.config.height = height;
-        self.surface.configure(&self.device, &self.config);
-        self.depth_view = create_depth_view(&self.device, &self.config);
+        self.recreate_swapchain();
         self.camera
             .set_viewport(Vec2::new(width as f32, height as f32));
     }
@@ -478,6 +476,11 @@ impl Renderer {
 
         self.queue
             .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniforms));
+    }
+
+    fn recreate_swapchain(&mut self) {
+        self.surface.configure(&self.device, &self.config);
+        self.depth_view = create_depth_view(&self.device, &self.config);
     }
 }
 
