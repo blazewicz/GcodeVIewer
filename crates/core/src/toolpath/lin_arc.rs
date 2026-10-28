@@ -10,8 +10,7 @@ const MAX_ARC_SEGMENTS: usize = 1024;
 pub(super) fn linearize_xy_arc(
     start: DVec3,
     end: DVec3,
-    i: f64,
-    j: f64,
+    ij: DVec2,
     r: Option<f64>,
     clockwise: bool,
     tolerance: f64,
@@ -24,7 +23,7 @@ pub(super) fn linearize_xy_arc(
             Some(center) => center,
             None => return vec![start, end],
         },
-        None => p0 + DVec2::new(i, j),
+        None => p0 + ij,
     };
 
     let v0 = p0 - center;
@@ -115,8 +114,7 @@ mod test {
         let points = linearize_xy_arc(
             DVec3::new(20.0, 0.0, 0.0),
             DVec3::new(0.0, 20.0, 0.0),
-            -20.0,
-            0.0,
+            DVec2::new(-20.0, 0.0),
             None,
             false,
             0.05,
@@ -140,8 +138,7 @@ mod test {
         let points = linearize_xy_arc(
             DVec3::new(0.0, 0.0, 0.0),
             DVec3::new(0.0, 0.0, 0.0),
-            0.0,
-            10.0,
+            DVec2::new(0.0, 10.0),
             None,
             false,
             0.05,
@@ -166,8 +163,7 @@ mod test {
         let points = linearize_xy_arc(
             DVec3::new(20.0, 0.0, 0.0),
             DVec3::new(0.0, 20.0, 1.0),
-            -20.0,
-            0.0,
+            DVec2::new(-20.0, 0.0),
             None,
             false,
             0.05,
@@ -195,8 +191,7 @@ mod test {
         let points = linearize_xy_arc(
             DVec3::new(0.0, 0.0, 0.0),
             DVec3::new(10.0, 0.0, 0.0),
-            0.0,
-            0.0,
+            DVec2::new(0.0, 0.0),
             Some(8.0),
             clockwise,
             0.05,
@@ -223,8 +218,7 @@ mod test {
         let points = linearize_xy_arc(
             DVec3::new(0.0, 0.0, 0.0),
             DVec3::new(10.0, 0.0, 0.0),
-            0.0,
-            0.0,
+            DVec2::new(0.0, 0.0),
             Some(4.0),
             true,
             0.05,

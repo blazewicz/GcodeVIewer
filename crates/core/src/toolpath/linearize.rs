@@ -8,7 +8,7 @@
 //! the chord deviation bound `radius * angle^2 / 8`; splines follow Marlin's
 //! planner and adapt their step to the curve's local straightness.
 
-use glam::DVec3;
+use glam::{DVec2, DVec3};
 
 use crate::gcode::CurveKind;
 
@@ -34,7 +34,7 @@ pub fn linearize_curve(
 ) -> Vec<DVec3> {
     match curve {
         Some(CurveKind::Arc { clockwise, i, j, r }) => {
-            linearize_xy_arc(start, end, i, j, r, clockwise, tolerance)
+            linearize_xy_arc(start, end, DVec2::new(i, j), r, clockwise, tolerance)
         }
 
         Some(CurveKind::Spline { i, j, p, q }) => linearize_xy_bezier_cubic(start, end, i, j, p, q),
