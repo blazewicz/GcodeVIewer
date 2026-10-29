@@ -112,7 +112,7 @@ fn push_record(record: &MotionRecord, out: &mut Vec<Segment>) {
     let feed = record.feed.map(|f| f as f32);
     let first = out.len();
 
-    let points = linearize_curve(record.curve, start, end, ARC_CHORD_TOLERANCE);
+    let points = linearize_curve(start, end, record.curve, ARC_CHORD_TOLERANCE);
     let kind = Kind::of(record.kind);
 
     for pair in points.windows(2) {

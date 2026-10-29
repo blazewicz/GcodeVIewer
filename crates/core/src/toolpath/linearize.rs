@@ -27,9 +27,9 @@ use super::lin_bezier_cubic::linearize_xy_bezier_cubic;
 /// `spline_samples` the Bézier sample count of the sample-based spline
 /// linearizer; the active Marlin-faithful one is adaptive and ignores it.
 pub fn linearize_curve(
-    curve: Option<CurveKind>,
     start: DVec3,
     end: DVec3,
+    curve: Option<CurveKind>,
     tolerance: f64,
 ) -> Vec<DVec3> {
     match curve {
@@ -53,9 +53,9 @@ mod tests {
     #[test]
     fn a_linear_move_is_a_single_chord() {
         let points = linearize_curve(
-            None,
             DVec3::new(1.0, 2.0, 0.0),
             DVec3::new(4.0, 6.0, 0.5),
+            None,
             0.05,
         );
 
