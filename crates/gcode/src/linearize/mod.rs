@@ -8,12 +8,15 @@
 //! the chord deviation bound `radius * angle^2 / 8`; splines follow Marlin's
 //! planner and adapt their step to the curve's local straightness.
 
+mod arc;
+mod bezier_cubic;
+
 use glam::{DVec2, DVec3};
 
 use crate::gcode::CurveKind;
 
-use super::lin_arc::linearize_xy_arc;
-use super::lin_bezier_cubic::linearize_xy_bezier_cubic;
+use arc::linearize_xy_arc;
+use bezier_cubic::linearize_xy_bezier_cubic;
 
 /// Linearizes the motion `kind` with optional `curve` into a polyline.
 ///
