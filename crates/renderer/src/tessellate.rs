@@ -128,7 +128,7 @@ fn push_record(record: &MotionRecord, out: &mut Vec<Segment>) {
 
     // Every piece shares the move's highest Z so the Z limit hides or shows
     // the move as a unit instead of cutting it at the boundary.
-    let move_z_max = start[2].max(end[2]) as f32;
+    let move_z_max = start.z.max(end.z) as f32;
     for segment in &mut out[first..] {
         segment.move_z_max = move_z_max;
     }
@@ -160,7 +160,7 @@ fn push_segment(
     feed: Option<f32>,
     out: &mut Vec<Segment>,
 ) {
-    if a.distance(b) < 1e-12 {
+    if a.distance_squared(b) < 1e-12 {
         return;
     }
 
@@ -172,7 +172,7 @@ fn push_segment(
         extruding,
         start_cap: false,
         end_cap: false,
-        move_z_max: a[2].max(b[2]),
+        move_z_max: a.z.max(b.z),
     });
 }
 

@@ -108,7 +108,7 @@ impl Camera {
         let sy = 2.0 * self.scale / self.viewport.y;
         let depth = 0.5 / self.radius.max(1e-6);
 
-        let axes = Mat3::from_cols(x * sx, y * sy, z * -depth).transpose();
+        let axes = Mat3::from_rows(x * sx, y * sy, z * -depth);
         let translation = Vec3::new(
             -sx * x.dot(self.target),
             -sy * y.dot(self.target),
