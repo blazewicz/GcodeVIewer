@@ -5,7 +5,7 @@ mod toolpath;
 
 pub use gcode::{CurveKind, MoveKind};
 pub use linearize::linearize_curve;
-pub use query::{MotionRecord, motions, moves_in_box};
+pub use query::{MotionRecord, motions};
 
 #[derive(Clone)]
 pub struct Options {
