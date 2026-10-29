@@ -7,7 +7,6 @@ rust-version = { workspace = true }
 
 [dependencies]
 log = { workspace = true }
-rayon = { workspace = true }
 smallvec = { workspace = true }
 glam = { workspace = true }
 
