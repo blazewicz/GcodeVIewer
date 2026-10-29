@@ -188,10 +188,8 @@ impl State {
             }
 
             Some(Code::SetPosition) => {
-                for (axis, letter) in b"XYZ".iter().enumerate() {
-                    if let Some(value) = words.param(*letter) {
-                        self.position.xyz[axis] = Some(self.scaled(value));
-                    }
+                for (axis, value) in Self::iter_given_xyz(words) {
+                    self.position.xyz[axis] = Some(self.scaled(value));
                 }
 
                 if let Some(value) = words.param(b'E') {
@@ -244,11 +242,9 @@ impl State {
         let before = self.position;
         let mut moved = false;
 
-        for (axis, letter) in b"XYZ".iter().enumerate() {
-            if let Some(value) = words.param(*letter) {
-                moved = true;
-                self.position.xyz[axis] = self.axis(before.xyz[axis], value);
-            }
+        for (axis, value) in Self::iter_given_xyz(words) {
+            moved = true;
+            self.position.xyz[axis] = self.axis(before.xyz[axis], value);
         }
 
         let commanded = words.param(b'E');
@@ -295,6 +291,13 @@ impl State {
             implicit,
             raw,
         })
+    }
+
+    fn iter_given_xyz(words: &Words) -> impl Iterator<Item = (usize, f64)> {
+        b"XYZ"
+            .iter()
+            .enumerate()
+            .filter_map(|(axis, letter)| words.param(*letter).map(|value| (axis, value)))
     }
 
     /// Reads the curve's control offsets from the line, in millimetres. A curve
