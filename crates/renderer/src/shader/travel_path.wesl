@@ -17,6 +17,7 @@ struct TravelPathOutput {
     @location(0) @interpolate(flat) color: vec4f,
 };
 
+@must_use
 fn travel_path_vertex(input: PathInput, index: u32) -> TravelPathOutput {
     let clip_start = uniforms.view_proj * vec4f(input.start, 1.0);
     let clip_end = uniforms.view_proj * vec4f(input.end, 1.0);

@@ -73,6 +73,7 @@ fn cone_vertex(
     return ConeVertex(world, normal);
 }
 
+@must_use
 fn print_path_vertex(input: PathInput, index: u32) -> PrintPathOutput {
     let segment = input.end - input.start;
     let length = max(length(segment), 1e-6);
