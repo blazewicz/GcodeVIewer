@@ -1,6 +1,6 @@
 [package]
-name = "gcode-viewer"
-description = "Conservative planar Marlin G-code curve optimizer"
+name = "gcode-viewer-gcode"
+description = "G-code interpreter"
 version = { workspace = true }
 edition = { workspace = true }
 rust-version = { workspace = true }

@@ -13,7 +13,7 @@ root = "./src/shader"
 include = ["src/shader/**/*.wesl"]
 
 [dependencies]
-gcode-viewer = { workspace = true }
+gcode-viewer-gcode = { workspace = true }
 glam = { workspace = true }
 log = { workspace = true }
 bytemuck = { workspace = true, features = ["derive"] }

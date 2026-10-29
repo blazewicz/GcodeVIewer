@@ -28,13 +28,9 @@ ci-lint:
     cargo fmt --check
     cargo clippy --locked --workspace --all-targets -- -D warnings
 
-# Core library unit and integration tests.
+# G-code interpreter tests.
 ci-core:
-    cargo test --locked -p gcode-viewer
-
-# Standalone CLI binary build and integration tests.
-ci-cli:
-    cargo test --locked -p gcode-viewer-cli
+    cargo test --locked -p gcode-viewer-gcode
 
 # Renderer crate: native lint plus host-side tests.
 ci-renderer:

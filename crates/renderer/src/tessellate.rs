@@ -12,7 +12,7 @@
 
 use glam::Vec3;
 
-use gcode_viewer::{MotionRecord, MoveKind, linearize_curve};
+use gcode_viewer_gcode::{MotionRecord, MoveKind, linearize_curve};
 
 /// Target chord deviation when flattening arcs, in millimetres.
 const ARC_CHORD_TOLERANCE: f64 = 0.05;
@@ -179,7 +179,7 @@ fn push_segment(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gcode_viewer::CurveKind;
+    use gcode_viewer_gcode::CurveKind;
     use glam::DVec3;
     use rstest::rstest;
 

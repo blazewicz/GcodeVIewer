@@ -1,6 +1,6 @@
 //! The demo asset must exercise every curve kind the renderer draws.
 
-use gcode_viewer::{MoveKind, motions};
+use gcode_viewer_gcode::{MoveKind, motions};
 
 #[test]
 fn the_demo_asset_covers_every_move_kind() {

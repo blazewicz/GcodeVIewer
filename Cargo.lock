@@ -349,7 +349,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gcode-viewer"
+name = "gcode-viewer-gcode"
 version = "0.1.0"
 dependencies = [
  "glam",
@@ -365,7 +365,7 @@ name = "gcode-viewer-renderer"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
- "gcode-viewer",
+ "gcode-viewer-gcode",
  "glam",
  "log",
  "naga",

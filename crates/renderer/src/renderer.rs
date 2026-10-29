@@ -10,7 +10,7 @@
 //! renderer independent of the host's event model.
 
 use bytemuck::Pod;
-use gcode_viewer::MotionRecord;
+use gcode_viewer_gcode::MotionRecord;
 use glam::{Vec2, Vec3};
 use wgpu::util::DeviceExt;
 
@@ -261,7 +261,7 @@ impl Renderer {
     /// Replaces the rendered toolpath with `text` and frames it.
     pub fn load_gcode(&mut self, text: &str) -> PathStats {
         self.needs_redraw = true;
-        let records = gcode_viewer::motions(text);
+        let records = gcode_viewer_gcode::motions(text);
         let segments = tessellate::segments(&records);
         let feed_range = tessellate::feed_range(&segments);
 
