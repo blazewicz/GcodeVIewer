@@ -3,7 +3,8 @@
 use glam::DVec2;
 
 use crate::Options;
-use crate::gcode::{Chunks, InterpretedMotion, Line, MoveKind, Outcome, State, SyntaxError};
+use crate::chunks::Chunks;
+use crate::gcode::{InterpretedMotion, Line, MoveKind, Outcome, State, SyntaxError};
 
 use super::motion::{Move, Piece};
 

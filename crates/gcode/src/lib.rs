@@ -1,3 +1,4 @@
+mod chunks;
 mod gcode;
 mod linearize;
 mod query;
