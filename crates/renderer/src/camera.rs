@@ -8,7 +8,7 @@
 
 use std::f32::consts::{FRAC_PI_2, TAU};
 
-use glam::{Mat3, Mat4, Quat, Vec2, Vec3};
+use glam::{Mat3, Mat4, Vec2, Vec3};
 
 /// Smallest and largest allowed zoom, in pixels per millimetre.
 const MIN_SCALE: f32 = 1e-4;
@@ -125,18 +125,14 @@ impl Camera {
 
     /// The camera axes as (right, up, toward the eye).
     fn basis(&self) -> (Vec3, Vec3, Vec3) {
-        // Yaw about the world Z axis, then pitch toward the horizon. The axes
-        // are the rotated frame's (Y, -X, Z), which keeps the right vector
-        // horizontal under yaw.
-        let yaw_quat = Quat::from_rotation_z(self.yaw);
-        let pitch_quat = Quat::from_rotation_y(FRAC_PI_2 - self.pitch);
-        let orientation = yaw_quat * pitch_quat;
+        let (sy, cy) = self.yaw.sin_cos();
+        let (sp, cp) = self.pitch.sin_cos();
 
-        (
-            orientation * Vec3::Y,
-            orientation * Vec3::NEG_X,
-            orientation * Vec3::Z,
-        )
+        let right = Vec3::new(-sy, cy, 0.0);
+        let up = Vec3::new(-cy * sp, -sy * sp, cp);
+        let eye = Vec3::new(cy * cp, sy * cp, sp);
+
+        (right, up, eye)
     }
 }
 
