@@ -165,23 +165,25 @@ impl State {
             Some(Code::Positioning { relative }) => {
                 self.relative = relative;
                 self.relative_e = relative;
+
                 Outcome::Ignored
             }
 
             Some(Code::Extrusion { relative }) => {
                 self.relative_e = relative;
+
                 Outcome::Ignored
             }
 
-            // Positions already stored in millimetres stay valid across a unit
-            // switch, so the reference frame survives it.
             Some(Code::Units { mm }) => {
                 self.mm = mm;
+
                 Outcome::Ignored
             }
 
             Some(Code::Plane { xy }) => {
                 self.xy = xy;
+
                 Outcome::Ignored
             }
 
@@ -191,19 +193,23 @@ impl State {
                         self.position.xyz[axis] = Some(self.scaled(value));
                     }
                 }
+
                 if let Some(value) = words.param(b'E') {
                     self.position.e = Some(self.scaled(value));
                 }
+
                 Outcome::Ignored
             }
 
             Some(Code::Reset) => {
                 self.invalidate();
+
                 Outcome::Ignored
             }
 
             Some(Code::Other) => {
                 self.invalidate();
+
                 Outcome::Unsupported
             }
 
@@ -218,6 +224,7 @@ impl State {
             // Without a modal motion command the parameters cannot be placed.
             None => {
                 self.invalidate();
+
                 Outcome::Unsupported
             }
         }
