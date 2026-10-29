@@ -7,9 +7,6 @@ pub use gcode::{CurveKind, MoveKind};
 pub use query::{MotionRecord, motions, moves_in_box};
 pub use toolpath::linearize_curve;
 
-#[cfg(test)]
-mod test_support;
-
 #[derive(Clone)]
 pub struct Options {
     pub tolerance: f64,

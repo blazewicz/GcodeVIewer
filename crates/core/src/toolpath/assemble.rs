@@ -294,9 +294,25 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::{options, travel_options};
     use indoc::indoc;
     use rstest::rstest;
+
+    fn options(mode: &str) -> Options {
+        Options {
+            tolerance: 0.02,
+            mode: mode.into(),
+            extrusion_tolerance: 0.01,
+            travel: false,
+            max_segments: 256,
+        }
+    }
+
+    fn travel_options(mode: &str) -> Options {
+        Options {
+            travel: true,
+            ..options(mode)
+        }
+    }
 
     /// The length of each piece: `0` for a raw line, the move count for a run.
     fn shape(pieces: &[Piece<'_>]) -> Vec<usize> {

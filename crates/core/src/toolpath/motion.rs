@@ -45,7 +45,19 @@ pub(crate) enum Piece<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::move_between;
+
+    fn move_between(start: Point, end: Point, raw: &'static str) -> Move<'static> {
+        Move {
+            start,
+            end,
+            e0: 0.0,
+            e1: 0.0,
+            relative_e: false,
+            feed: 1200.0,
+            kind: MoveKind::Feed,
+            raw,
+        }
+    }
 
     fn a() -> Move<'static> {
         let mut m = move_between(Point::new(0.0, 0.0), Point::new(1.0, 0.0), "");
