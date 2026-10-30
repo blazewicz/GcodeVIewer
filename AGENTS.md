@@ -12,7 +12,7 @@ Currently supported G-code flavors:
 
 ```
 .github/         GitHub Actions CI config
-crates/core/     Core G-code logic, parser, state machine
+crates/gcode/    G-code interpreter
 crates/renderer/ Platform-neutral wgpu renderer, shaders, camera and tessellation
 crates/wasm/     Thin WebAssembly binding around the renderer
 ui/              Browser UI
