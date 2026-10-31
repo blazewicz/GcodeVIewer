@@ -341,6 +341,7 @@ dependencies = [
  "bytemuck",
  "gcode-viewer-gcode",
  "glam",
+ "indoc",
  "log",
  "naga",
  "rstest",

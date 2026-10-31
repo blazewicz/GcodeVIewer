@@ -336,17 +336,3 @@ from `node_modules`.
 | wgsl-play | web component for live WESL rendering with built-in uniforms (`env::u`) |
 | wgsl-edit | CodeMirror web component for editing/linting WESL in web apps |
 | lezer-wesl | Lezer grammar for WESL syntax highlighting |
-
-## Migrating a single WGSL file
-
-1. Rename `shader.wgsl` to `shader.wesl`; content stays identical because WESL
-   is a superset.
-2. Add `wesl` as a build dependency and a `build.rs` that compiles the file and
-   writes an artifact.
-3. Replace `wgpu::include_wgsl!` with an explicit `ShaderModuleDescriptor`
-   whose source is the `wesl_core::include_wesl!` artifact.
-4. Point tests at the right artifact: naga validation should parse the linked
-   output; text-parsing tests should read the `.wesl` source.
-5. Add `wesl.toml` when editor tooling or imports arrive.
-6. Split the file into modules later, one file at a time; the `.wgsl` fallback
-   keeps the tree buildable throughout.
