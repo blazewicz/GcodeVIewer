@@ -72,7 +72,7 @@ jobs:
 
   ci:
     if: always()
-    needs: [lint, core, wasm]
+    needs: [lint, shared, wasm, native]
     runs-on: ubuntu-latest
     steps:
       - name: Require every job to pass
