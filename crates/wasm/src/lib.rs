@@ -13,7 +13,7 @@ use gcode_viewer_renderer::{
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
-/// Summary of the last [`Renderer::load_gcode`] call.
+/// Summary of a completed load.
 #[wasm_bindgen]
 pub struct PathStats {
     inner: SharedPathStats,
@@ -115,6 +115,31 @@ impl Renderer {
     /// Replaces the rendered toolpath with `text` and frames it.
     pub fn load_gcode(&mut self, text: &str) -> PathStats {
         self.inner.load_gcode(text).into()
+    }
+
+    /// Starts a chunked load, replacing any load already in progress. Feed it
+    /// with [`Renderer::load_gcode_feed`] and finish with
+    /// [`Renderer::load_gcode_end`].
+    pub fn load_gcode_begin(&mut self) {
+        self.inner.begin_load();
+    }
+
+    /// Feeds the next chunk of G-code text into the load in progress. The
+    /// chunk may end mid-line; lines are interpreted once complete.
+    pub fn load_gcode_feed(&mut self, text: &str) -> Result<(), JsValue> {
+        if self.inner.feed_load(text) {
+            Ok(())
+        } else {
+            Err(js_error("load_gcode_feed called with no load in progress"))
+        }
+    }
+
+    /// Finishes the chunked load and reports its summary.
+    pub fn load_gcode_end(&mut self) -> Result<PathStats, JsValue> {
+        self.inner
+            .end_load()
+            .map(PathStats::from)
+            .ok_or_else(|| js_error("load_gcode_end called with no load in progress"))
     }
 
     /// Draws one frame and presents it.

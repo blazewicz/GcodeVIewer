@@ -33,8 +33,8 @@ fn the_demo_curves_carry_their_offsets_and_endpoints() {
         curves.len()
     );
     for curve in curves {
-        assert!(curve.curve.is_some(), "{}", curve.line);
-        assert!(curve.start.is_some(), "{}", curve.line);
-        assert!(curve.end.is_some(), "{}", curve.line);
+        assert!(curve.curve.is_some(), "line {}", curve.line_number);
+        assert!(curve.start.is_some(), "line {}", curve.line_number);
+        assert!(curve.end.is_some(), "line {}", curve.line_number);
     }
 }

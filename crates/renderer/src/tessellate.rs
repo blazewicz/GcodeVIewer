@@ -17,7 +17,7 @@ use gcode_viewer_gcode::{MotionRecord, MoveKind, linearize_curve};
 /// Target chord deviation when flattening arcs, in millimetres.
 const ARC_CHORD_TOLERANCE: f64 = 0.05;
 /// Global bound so a huge file cannot exhaust browser memory.
-const MAX_SEGMENTS: usize = 8_000_000;
+pub(crate) const MAX_SEGMENTS: usize = 8_000_000;
 
 /// The kind of motion a segment belongs to, used as the palette index.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -88,20 +88,20 @@ pub(crate) fn feed_range(segments: &[Segment]) -> Option<(f32, f32)> {
     found.then_some((min, max))
 }
 
-/// Flattens every record with known endpoints into segments, in file order.
-pub(crate) fn segments(records: &[MotionRecord]) -> Vec<Segment> {
-    let mut out = Vec::new();
-
+/// Flattens every record with known endpoints, appending to `out` while fewer
+/// than `remaining` segments have been produced. Returns `false` when the
+/// limit stopped the flattening, so the caller knows later records were
+/// dropped.
+pub(crate) fn extend(records: &[MotionRecord], out: &mut Vec<Segment>, remaining: usize) -> bool {
     for record in records {
-        if out.len() >= MAX_SEGMENTS {
-            log::warn!("segment cap reached; remaining moves are not rendered");
-            break;
+        if out.len() >= remaining {
+            return false;
         }
 
-        push_record(record, &mut out);
+        push_record(record, out);
     }
 
-    out
+    true
 }
 
 fn push_record(record: &MotionRecord, out: &mut Vec<Segment>) {
@@ -183,6 +183,13 @@ mod tests {
     use glam::DVec3;
     use rstest::rstest;
 
+    /// Flattens without a practical segment limit.
+    fn segments(records: &[MotionRecord]) -> Vec<Segment> {
+        let mut out = Vec::new();
+        extend(records, &mut out, MAX_SEGMENTS);
+        out
+    }
+
     fn record(kind: MoveKind, curve: Option<CurveKind>, start: DVec3, end: DVec3) -> MotionRecord {
         MotionRecord {
             start: Some(start),
@@ -192,7 +199,6 @@ mod tests {
             kind,
             curve,
             line_number: 1,
-            line: String::new(),
         }
     }
 
@@ -466,5 +472,38 @@ mod tests {
 
         assert!(segments.len() > 1);
         assert!(segments.iter().all(|s| s.move_z_max == 1.0));
+    }
+
+    #[test]
+    fn extend_reports_completion_when_no_records_were_dropped() {
+        let records = [record(
+            MoveKind::Feed,
+            None,
+            DVec3::ZERO,
+            DVec3::new(1.0, 0.0, 0.0),
+        )];
+
+        let mut out = Vec::new();
+
+        assert!(extend(&records, &mut out, 1));
+        assert_eq!(out.len(), 1);
+    }
+
+    #[test]
+    fn extend_stops_once_the_limit_is_spent() {
+        let records = [
+            record(MoveKind::Feed, None, DVec3::ZERO, DVec3::new(1.0, 0.0, 0.0)),
+            record(
+                MoveKind::Feed,
+                None,
+                DVec3::new(1.0, 0.0, 0.0),
+                DVec3::new(2.0, 0.0, 0.0),
+            ),
+        ];
+
+        let mut out = Vec::new();
+
+        assert!(!extend(&records, &mut out, 1));
+        assert_eq!(out.len(), 1);
     }
 }

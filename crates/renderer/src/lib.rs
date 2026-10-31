@@ -7,6 +7,7 @@
 //! `gcode-viewer-wasm` crate.
 
 mod camera;
+mod load;
 mod renderer;
 mod shader_contract;
 mod tessellate;

@@ -1,6 +1,6 @@
 import "./style.css";
 import { createControls, renderControls } from "./controls";
-import { createRenderer } from "./renderer";
+import { createRenderer, type LoadResult } from "./renderer";
 import { colorByFeed, feedLegendVisible, hasFeed, stats, zLabel, zWindow } from "./state";
 import { attachViewport, syncCanvasSize } from "./viewport";
 
@@ -83,8 +83,7 @@ for (const input of [feedMin, feedMax]) {
   input.addEventListener("input", applyFeedRange);
 }
 
-function show(text: string): void {
-  const result = api.loadGcode(text);
+function show(result: LoadResult): void {
   stats.set(`${result.moves.toLocaleString()} moves · ${result.segments.toLocaleString()} segments`);
 
   hasFeed.set(result.hasFeed);
@@ -97,8 +96,45 @@ function show(text: string): void {
   zWindow.set({ min: result.zMin, max: result.zMax, value: result.zMax });
 }
 
+/** Incremented per load so an older stream stops after a newer load starts. */
+let loadGeneration = 0;
+
+/**
+ * Streams decoded text into the renderer in chunks. A newer load supersedes
+ * one still in flight; the wasm loader is a single stateful session.
+ */
+async function loadStream(stream: ReadableStream<string>): Promise<void> {
+  const generation = ++loadGeneration;
+  const reader = stream.getReader();
+
+  api.loadGcodeBegin();
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+
+      if (generation !== loadGeneration) {
+        await reader.cancel();
+        return;
+      }
+
+      if (done) {
+        break;
+      }
+
+      api.loadGcodeFeed(value);
+    }
+
+    show(api.loadGcodeEnd());
+  } catch (error) {
+    if (generation === loadGeneration) {
+      stats.set(`Loading failed: ${String(error)}`);
+    }
+  }
+}
+
 async function loadFile(file: File): Promise<void> {
-  show(await file.text());
+  await loadStream(file.stream().pipeThrough(new TextDecoderStream()));
 }
 
 fileInput.addEventListener("change", () => {
@@ -119,7 +155,11 @@ canvas.addEventListener("drop", (event) => {
 
 requireElement<HTMLButtonElement>("demo").addEventListener("click", async () => {
   const response = await fetch("demo.gcode");
-  show(await response.text());
+  if (response.body === null) {
+    stats.set("Loading demo failed: response has no body");
+    return;
+  }
+  await loadStream(response.body.pipeThrough(new TextDecoderStream()));
 });
 
 requireElement<HTMLButtonElement>("fit").addEventListener("click", () => api.fit());

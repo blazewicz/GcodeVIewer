@@ -4,19 +4,22 @@
 //! window. G-code text is parsed through the core query API, flattened into
 //! segments, uploaded to instance buffers, and drawn: non-extruding moves as
 //! screen-space expanded quads, extruding moves as round tubes with conical
-//! caps and start sockets. The caller draws a frame with [`Renderer::render`]
-//! when [`Renderer::needs_redraw`] reports that the image changed, and forwards
+//! caps and start sockets. A load can be fed in chunks through
+//! [`Renderer::begin_load`], [`Renderer::feed_load`], and
+//! [`Renderer::end_load`], so the host never has to hold the whole file. The
+//! caller draws a frame with [`Renderer::render`] when
+//! [`Renderer::needs_redraw`] reports that the image changed, and forwards
 //! pointer and resize events through the camera methods, which keeps the
 //! renderer independent of the host's event model.
 
 use bytemuck::Pod;
-use gcode_viewer_gcode::MotionRecord;
 use glam::{Vec2, Vec3};
 use wgpu::util::DeviceExt;
 
 use crate::camera::Camera;
+use crate::load::Loader;
 use crate::shader_contract::{PathInstance, Uniforms};
-use crate::tessellate;
+use crate::tessellate::Segment;
 use crate::tube;
 use crate::visibility::KindMask;
 
@@ -25,6 +28,9 @@ const FIT_MARGIN: f32 = 40.0;
 const DEFAULT_LINE_WIDTH: f32 = 1.6;
 /// Cross-section diameter of an extruding move in millimetres.
 const DEFAULT_EXTRUSION_DIAMETER: f32 = 0.2;
+/// Staged instances that trigger an upload. Keeps the host-side staging
+/// buffer small while leaving the draw loop with few vertex buffers.
+const INSTANCES_PER_BATCH: usize = 1 << 18;
 /// Depth format chosen for WebGL2 compatibility; nothing samples it.
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24Plus;
 const BACKGROUND: wgpu::Color = wgpu::Color {
@@ -57,7 +63,7 @@ pub enum RendererError {
     Device(#[from] wgpu::RequestDeviceError),
 }
 
-/// Summary of the last [`Renderer::load_gcode`] call.
+/// Summary of the last completed load.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PathStats {
     /// Number of motion records parsed from the file.
@@ -86,10 +92,13 @@ pub struct Renderer {
     print_path_pipeline: wgpu::RenderPipeline,
     bind_group: wgpu::BindGroup,
     camera_buffer: wgpu::Buffer,
-    travel_path_buffer: Option<wgpu::Buffer>,
-    travel_path_count: u32,
-    print_path_buffer: Option<wgpu::Buffer>,
-    print_path_count: u32,
+    travel_path_batches: Vec<PathBatch>,
+    print_path_batches: Vec<PathBatch>,
+    /// Instances of the current load not yet uploaded.
+    travel_staging: Vec<PathInstance>,
+    print_staging: Vec<PathInstance>,
+    /// The load in progress, if any.
+    load: Option<Loader>,
     camera: Camera,
     line_width: f32,
     extrusion_radius: f32,
@@ -239,10 +248,11 @@ impl Renderer {
             print_path_pipeline,
             bind_group,
             camera_buffer,
-            travel_path_buffer: None,
-            travel_path_count: 0,
-            print_path_buffer: None,
-            print_path_count: 0,
+            travel_path_batches: Vec::new(),
+            print_path_batches: Vec::new(),
+            travel_staging: Vec::new(),
+            print_staging: Vec::new(),
+            load: None,
             camera,
             line_width: DEFAULT_LINE_WIDTH,
             extrusion_radius: DEFAULT_EXTRUSION_DIAMETER * 0.5,
@@ -258,36 +268,99 @@ impl Renderer {
         })
     }
 
-    /// Replaces the rendered toolpath with `text` and frames it.
+    /// Replaces the rendered toolpath with `text` and frames it. Hosts that
+    /// cannot hand over the whole file at once use the
+    /// [begin](Renderer::begin_load), [feed](Renderer::feed_load), and
+    /// [end](Renderer::end_load) sequence instead.
     pub fn load_gcode(&mut self, text: &str) -> PathStats {
-        self.needs_redraw = true;
-        let records = gcode_viewer_gcode::motions(text);
-        let segments = tessellate::segments(&records);
-        let feed_range = tessellate::feed_range(&segments);
+        self.begin_load();
+        self.feed_load(text);
+        self.end_load()
+            .expect("a load begun by begin_load always completes")
+    }
 
-        self.moves = records.len();
-        self.segments = segments.len();
-        self.bounds = bounds_of(&records);
-        self.z_max = self.bounds.map(|(_, max)| max.z).unwrap_or(f32::INFINITY);
-        (self.feed_min, self.feed_max) = feed_range.unwrap_or((0.0, 1.0));
+    /// Starts a chunked load, replacing any load already in progress.
+    ///
+    /// The instance buffers of the previous toolpath are released right away,
+    /// but no redraw is requested: the last presented image stays on screen
+    /// until [`Renderer::end_load`] uploads the new toolpath.
+    pub fn begin_load(&mut self) {
+        self.load = Some(Loader::new());
+        self.travel_path_batches.clear();
+        self.print_path_batches.clear();
+        self.travel_staging.clear();
+        self.print_staging.clear();
+        self.moves = 0;
+        self.segments = 0;
+        self.bounds = None;
+        self.feed_min = 0.0;
+        self.feed_max = 1.0;
+    }
 
-        let mut travel_paths = Vec::new();
-        let mut print_paths = Vec::new();
+    /// Feeds the next chunk of G-code text into the active load, flattening
+    /// and staging its segments for the GPU. Returns `false` when no load is
+    /// active, leaving `text` unconsumed.
+    pub fn feed_load(&mut self, text: &str) -> bool {
+        let Some(load) = self.load.as_mut() else {
+            return false;
+        };
 
-        for segment in segments {
-            let path_instance = PathInstance::from_segment(segment);
+        let device = &self.device;
+        let (travel_staging, print_staging) = (&mut self.travel_staging, &mut self.print_staging);
+        let (travel_batches, print_batches) =
+            (&mut self.travel_path_batches, &mut self.print_path_batches);
 
-            if segment.extruding {
-                print_paths.push(path_instance);
-            } else {
-                travel_paths.push(path_instance);
+        for &segment in load.feed(text) {
+            stage(segment, travel_staging, print_staging);
+
+            // A chunk of long arcs can flatten to far more segments than the
+            // staging limit, so the check runs per segment, not per chunk.
+            if travel_staging.len() >= INSTANCES_PER_BATCH {
+                flush(device, "travel_paths", travel_staging, travel_batches);
+            }
+            if print_staging.len() >= INSTANCES_PER_BATCH {
+                flush(device, "print_paths", print_staging, print_batches);
             }
         }
 
-        self.travel_path_count = travel_paths.len().min(u32::MAX as usize) as u32;
-        self.print_path_count = print_paths.len().min(u32::MAX as usize) as u32;
-        self.travel_path_buffer = upload(&self.device, "travel_paths", travel_paths);
-        self.print_path_buffer = upload(&self.device, "print_paths", print_paths);
+        true
+    }
+
+    /// Ends the active load: uploads the remaining staged instances, frames
+    /// the toolpath, and reports the load summary. Returns `None` when no load
+    /// is active.
+    pub fn end_load(&mut self) -> Option<PathStats> {
+        let mut load = self.load.take()?;
+
+        {
+            let (travel_staging, print_staging) =
+                (&mut self.travel_staging, &mut self.print_staging);
+
+            for &segment in load.finish() {
+                stage(segment, travel_staging, print_staging);
+            }
+        }
+
+        flush(
+            &self.device,
+            "travel_paths",
+            &mut self.travel_staging,
+            &mut self.travel_path_batches,
+        );
+        flush(
+            &self.device,
+            "print_paths",
+            &mut self.print_staging,
+            &mut self.print_path_batches,
+        );
+
+        let stats = load.stats();
+        self.moves = stats.moves;
+        self.segments = stats.segments;
+        self.bounds = stats.bounds;
+        self.z_max = self.bounds.map(|(_, max)| max.z).unwrap_or(f32::INFINITY);
+        (self.feed_min, self.feed_max) = stats.feed_range.unwrap_or((0.0, 1.0));
+        self.needs_redraw = true;
 
         self.fit();
 
@@ -295,11 +368,12 @@ impl Renderer {
             .bounds
             .map(|(min, max)| (min.z as f64, max.z as f64))
             .unwrap_or((0.0, 0.0));
-        let (feed_min, feed_max, has_feed) = feed_range
+        let (feed_min, feed_max, has_feed) = stats
+            .feed_range
             .map(|(min, max)| (min as f64, max as f64, true))
             .unwrap_or((0.0, 0.0, false));
 
-        PathStats {
+        Some(PathStats {
             moves: self.moves,
             segments: self.segments,
             z_min,
@@ -307,7 +381,7 @@ impl Renderer {
             feed_min,
             feed_max,
             has_feed,
-        }
+        })
     }
 
     /// Whether the view or toolpath changed since the last presented frame.
@@ -378,16 +452,22 @@ impl Renderer {
 
             pass.set_bind_group(0, &self.bind_group, &[]);
 
-            if let Some(buffer) = &self.travel_path_buffer {
+            if !self.travel_path_batches.is_empty() {
                 pass.set_pipeline(&self.travel_path_pipeline);
-                pass.set_vertex_buffer(0, buffer.slice(..));
-                pass.draw(0..6, 0..self.travel_path_count);
+
+                for batch in &self.travel_path_batches {
+                    pass.set_vertex_buffer(0, batch.buffer.slice(..));
+                    pass.draw(0..6, 0..batch.count);
+                }
             }
 
-            if let Some(buffer) = &self.print_path_buffer {
+            if !self.print_path_batches.is_empty() {
                 pass.set_pipeline(&self.print_path_pipeline);
-                pass.set_vertex_buffer(0, buffer.slice(..));
-                pass.draw(0..tube::PRINT_PATH_VERTICES, 0..self.print_path_count);
+
+                for batch in &self.print_path_batches {
+                    pass.set_vertex_buffer(0, batch.buffer.slice(..));
+                    pass.draw(0..tube::PRINT_PATH_VERTICES, 0..batch.count);
+                }
             }
         }
 
@@ -577,14 +657,50 @@ fn create_path_pipeline(
     })
 }
 
-/// Uploads one instance per element, or `None` when there is nothing to draw.
-fn upload<T: Pod>(device: &wgpu::Device, label: &str, instances: Vec<T>) -> Option<wgpu::Buffer> {
-    (!instances.is_empty()).then(|| {
-        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some(label),
-            contents: bytemuck::cast_slice(&instances),
-            usage: wgpu::BufferUsages::VERTEX,
-        })
+/// One uploaded vertex buffer and the number of instances it holds.
+struct PathBatch {
+    buffer: wgpu::Buffer,
+    count: u32,
+}
+
+/// Files one flattened segment under the pipeline that draws it.
+fn stage(segment: Segment, travel: &mut Vec<PathInstance>, print: &mut Vec<PathInstance>) {
+    let instance = PathInstance::from_segment(segment);
+
+    if segment.extruding {
+        print.push(instance);
+    } else {
+        travel.push(instance);
+    }
+}
+
+/// Uploads the staged instances as one buffer, leaving the staging vector
+/// empty. Does nothing when there is nothing staged.
+fn flush(
+    device: &wgpu::Device,
+    label: &str,
+    staging: &mut Vec<PathInstance>,
+    batches: &mut Vec<PathBatch>,
+) {
+    if staging.is_empty() {
+        return;
+    }
+
+    let instances = std::mem::take(staging);
+    let count = instances.len().min(u32::MAX as usize) as u32;
+
+    batches.push(PathBatch {
+        buffer: upload(device, label, &instances),
+        count,
+    });
+}
+
+/// Uploads one instance per element into a fresh vertex buffer.
+fn upload<T: Pod>(device: &wgpu::Device, label: &str, instances: &[T]) -> wgpu::Buffer {
+    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some(label),
+        contents: bytemuck::cast_slice(instances),
+        usage: wgpu::BufferUsages::VERTEX,
     })
 }
 
@@ -610,20 +726,4 @@ fn create_depth_view(
             view_formats: &[],
         })
         .create_view(&wgpu::TextureViewDescriptor::default())
-}
-
-/// The XYZ extent of every record with a known endpoint.
-fn bounds_of(records: &[MotionRecord]) -> Option<(Vec3, Vec3)> {
-    let mut min = Vec3::splat(f32::INFINITY);
-    let mut max = Vec3::splat(f32::NEG_INFINITY);
-    let mut found = false;
-
-    for point in records.iter().flat_map(|r| [r.start, r.end]).flatten() {
-        let point = point.as_vec3();
-        min = min.min(point);
-        max = max.max(point);
-        found = true;
-    }
-
-    found.then_some((min, max))
 }

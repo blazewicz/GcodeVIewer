@@ -1,4 +1,4 @@
-import init, { Renderer } from "../pkg/gcode_viewer_wasm.js";
+import init, { Renderer, type PathStats } from "../pkg/gcode_viewer_wasm.js";
 
 export interface LoadResult {
   moves: number;
@@ -12,6 +12,12 @@ export interface LoadResult {
 
 export interface RendererApi {
   loadGcode(text: string): LoadResult;
+  /** Starts a chunked load; feed it with `loadGcodeFeed` and finish with `loadGcodeEnd`. */
+  loadGcodeBegin(): void;
+  /** Feeds one chunk of text; the chunk may end mid-line. */
+  loadGcodeFeed(text: string): void;
+  /** Finishes the load and reports its summary. */
+  loadGcodeEnd(): LoadResult;
   /** Whether the rendered image changed since the last `render` call. */
   needsRedraw(): boolean;
   render(): void;
@@ -28,23 +34,27 @@ export interface RendererApi {
   setFeedRange(min: number, max: number): void;
 }
 
+function toLoadResult(stats: PathStats): LoadResult {
+  return {
+    moves: stats.moves,
+    segments: stats.segments,
+    zMin: stats.z_min,
+    zMax: stats.z_max,
+    feedMin: stats.feed_min,
+    feedMax: stats.feed_max,
+    hasFeed: stats.has_feed,
+  };
+}
+
 export async function createRenderer(canvas: HTMLCanvasElement): Promise<RendererApi> {
   await init();
   const renderer = await Renderer.create(canvas);
 
   return {
-    loadGcode(text) {
-      const stats = renderer.load_gcode(text);
-      return {
-        moves: stats.moves,
-        segments: stats.segments,
-        zMin: stats.z_min,
-        zMax: stats.z_max,
-        feedMin: stats.feed_min,
-        feedMax: stats.feed_max,
-        hasFeed: stats.has_feed,
-      };
-    },
+    loadGcode: (text) => toLoadResult(renderer.load_gcode(text)),
+    loadGcodeBegin: () => renderer.load_gcode_begin(),
+    loadGcodeFeed: (text) => renderer.load_gcode_feed(text),
+    loadGcodeEnd: () => toLoadResult(renderer.load_gcode_end()),
     render: () => renderer.render(),
     needsRedraw: () => renderer.needs_redraw(),
     resize: () => renderer.resize(),
