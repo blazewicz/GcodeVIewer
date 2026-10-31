@@ -6,6 +6,9 @@ edition = { workspace = true }
 rust-version = { workspace = true }
 publish = false
 
+[package.metadata.wasm-pack.profile.custom]
+wasm-opt = ["-Oz"]
+
 [lib]
 name = "gcode_viewer_wasm"
 crate-type = ["cdylib", "rlib"]

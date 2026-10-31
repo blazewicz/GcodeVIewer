@@ -63,7 +63,7 @@ wasm-check:
 
 # Build the WASM binding package for the Vite demo.
 wasm:
-    wasm-pack build crates/wasm --target web --out-dir ../../ui/pkg
+    wasm-pack build crates/wasm --profile wasm-release --target web --out-dir ../../ui/pkg
 
 # Build the renderer and run the Vite demo at http://localhost:5173.
 ui: wasm

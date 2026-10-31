@@ -35,3 +35,7 @@ all = "deny"
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
