@@ -1,110 +1,83 @@
 # GcodeViewer
 
-Browser-based viewer with limited editing functionality for G-code.
+[![Color-coded G-code toolpath preview in GcodeViewer](ui/public/og.png)](https://blazewicz.github.io/GcodeVIewer/)
 
-## Renderer (wgpu + WASM)
+GcodeViewer turns a Marlin G-code file into a toolpath you can walk around. Open it
+in your browser or in a small desktop window, inspect every move, arc, and Bézier
+spline, and see what the printer is about to do — all on your machine.
 
-`crates/renderer` parses G-code through the core query API (`motions`) and draws
-the toolpath with wgpu. It is platform-neutral: callers provide a wgpu instance
-and surface, so the same renderer code compiles for native targets as well as
-the browser. `crates/wasm` is a thin `wasm-bindgen` wrapper that creates the
-canvas surface and forwards calls to the renderer.
+**[Open the web viewer →](https://blazewicz.github.io/GcodeVIewer/)** — nothing to
+install, and your files are never uploaded.
 
-Rapid, feed, arc, and spline segments are colour-coded by kind, and
-`set_color_by_feed` switches to a colour scale over the feedrate range of the
-loaded file (tunable with `set_feed_range` to keep outliers from flattening the
-scale), leaving moves without a known feedrate grey. Pan, zoom, orbit, and fit
-are exposed to the host page. Extruding moves are drawn as round tubes with a
-physical diameter, configurable through `set_extrusion_diameter` (0.2 mm by
-default). Each segment ends in a conical cap and starts with a matching inset
-socket; pieces of one move overlap, while separate moves meet cone-to-rim so
-they stay visually distinct. Rapids and non-extruding moves stay thin lines. The
-WASM binding takes a canvas element and leaves the frame loop to the caller, so
-a React component only needs a ref and a `requestAnimationFrame` loop.
+## Web viewer
 
-```sh
-mise install        # provides wasm-pack and node
-just wasm-target    # once: rustup target add wasm32-unknown-unknown
-just ui             # builds crates/wasm and serves the Vite demo
-```
+- Drag and drop a file onto the canvas, pick one with the file dialog (`.gcode`,
+  `.nc`, `.txt`), or load the bundled demo.
+- Moves are color-coded by kind — `G0` rapid, `G1` feed, `G2`/`G3` arc, `G5` spline —
+  and each kind can be hidden.
+- Color the toolpath by feedrate to find slow details and fast travel at a glance,
+  with an adjustable range that keeps outliers from flattening the scale.
+- Extruding moves are drawn as round tubes whose diameter you can adjust; travel
+  moves stay thin lines.
+- Slide a Z cut-off through the file to look inside a print from any angle.
+- See the move and segment counts of the loaded file.
+- Drag to pan, scroll to zoom, middle or Ctrl/Cmd+drag to orbit, and fit the whole
+  toolpath with one click.
+- Files are read and parsed in chunks, so large G-code files open without freezing
+  the page.
 
-```ts
-import init, { Renderer } from "gcode-viewer-wasm";
+Requires a browser with WebAssembly and WebGPU or WebGL 2.
 
-await init();
-const renderer = await Renderer.create(canvas);
-renderer.load_gcode(text);
+## Desktop viewer
 
-function frame() {
-  renderer.render();
-  requestAnimationFrame(frame);
-}
-requestAnimationFrame(frame);
-```
-
-`just wasm-check` lints the renderer and binding for the wasm32 target, and
-`just wasm` builds the package into `ui/pkg` for the Vite app.
-
-## Site metadata
-
-The deployed UI at <https://blazewicz.github.io/GcodeVIewer/> carries its SEO
-metadata in `ui/index.html` (canonical URL, Open Graph and Twitter cards,
-`WebApplication` JSON-LD), `ui/public/sitemap.xml`, `ui/public/robots.txt` and
-`ui/public/favicon.svg`. The site URL appears in the first three;
-`just ui-build` runs `ui/scripts/check-seo.mjs`, which fails when they disagree,
-a required tag disappears or an image is missing.
-
-`ui/public/og.png` and the PNG icons are committed. Regenerate them from the
-built UI with `just og-image`, which downloads Chromium on the first run and
-falls back to a branded card when no WebGL is available; on Linux, Chromium may
-need its system packages first (`npx playwright install-deps chromium`). When
-the `INDEXNOW_KEY` repository secret is set, the deploy workflow publishes
-`<key>.txt` with the site and pings IndexNow for the new deployment.
-
-## Native viewer
-
-`crates/native` is a tiny native host: `gcode-viewer <FILE>` opens a window and
-renders the toolpath with the same platform-neutral renderer the browser uses.
-There is no chrome around the image, and files stream in chunks instead of
-being held in memory.
+The same renderer in a native window, built from the repository:
 
 ```sh
-just view path/to/file.gcode
-# or
 cargo run --release -p gcode-viewer-native -- path/to/file.gcode
+# or
+just view path/to/file.gcode
 ```
 
-Large files are parsed with a debug build far more slowly than with a release
-build, so prefer `--release` (what `just view` uses) for real toolpaths.
+The file streams in from disk in chunks, so memory stays low on large toolpaths,
+and there is no interface around the image. Without a usable GPU the viewer falls
+back to software rendering and says so at startup.
 
-Left-drag pans, middle-drag or Ctrl+drag orbits, and the wheel zooms under the
-cursor. `F` fits the toolpath, `Up`/`Down` move the Z clip that hides everything
-above it (`Shift` for a fine step), `Z` resets the clip, and `Esc` quits. The
-window title shows the cut-off while the clip is active.
+- **Mouse:** left-drag pans, middle-drag or Ctrl+drag orbits, and the wheel zooms
+  under the cursor.
+- **Keyboard:** `F` fits the toolpath, `Up`/`Down` move the Z clip (`Shift` for a
+  fine step), `Z` resets it, and `Esc` quits. While clipping, the window title shows
+  the cut-off height.
 
-Without a hardware graphics adapter the viewer falls back to software
-rasterization and says so at startup; every segment is then drawn on the CPU,
-so large toolpaths render slowly.
+Use a release build for real toolpaths; debug builds parse large files far more
+slowly.
 
-On WSL2 the viewer selects Mesa's D3D12 driver, which reaches the Windows GPU
-through `/dev/dxg`; without that, Mesa's fallback can end at llvmpipe even on a
-machine with a GPU. Setting `GALLIUM_DRIVER` or `MESA_LOADER_DRIVER_OVERRIDE`
-yourself overrides the choice.
+## G-code support
 
-## Development
+The interpreter follows Marlin-flavored G-code:
 
-```sh
-uv sync
-uv run pytest -q
-uv run maturin develop --release
-cargo test
-cargo clippy --workspace --all-targets -- -D warnings
-uv run python scripts/benchmark.py
-uv run python scripts/benchmark.py --mode splines
-```
+- `G0`/`G1` linear moves, including modal moves that omit the command.
+- `G2`/`G3` arcs and full circles, defined with `I`/`J` offsets or an `R` radius.
+- `G5` cubic Bézier splines, linearized with Marlin's own adaptive sampling so the
+  preview follows the curve as printed.
+- Modal state: `G90`/`G91` positioning, `G20`/`G21` units, `G92` position offsets,
+  `M82`/`M83` extrusion modes.
+- `;` comments, flexible whitespace, and any case (`g1x1y2` reads the same as
+  `G1 X1 Y2`).
+- Common support commands (temperatures, fan control, feedrate overrides, ...) are
+  recognized and skipped.
 
-Firmware semantics were checked against Marlin 2.1.2.5:
-[G5 handler](https://github.com/MarlinFirmware/Marlin/blob/2.1.2.5/Marlin/src/gcode/motion/G5.cpp),
-[Bézier planner](https://github.com/MarlinFirmware/Marlin/blob/2.1.2.5/Marlin/src/module/planner_bezier.cpp).
-G5 always emits explicit I/J offsets from the start and P/Q offsets from the
-end. In particular, its extrusion parameter is not arc length.
+Extrusion (`E`) and feedrate (`F`) are tracked per move, which is what makes the
+tube rendering and feedrate coloring accurate.
+
+## Under the hood
+
+A Rust G-code interpreter and a platform-neutral [wgpu](https://wgpu.rs) renderer
+power both viewers, so they draw identical toolpaths. The web app compiles the
+renderer to WebAssembly behind a thin binding, and its interface is TypeScript on
+[Vite](https://vite.dev).
+
+## License
+
+GcodeViewer is source-available under the
+[PolyForm Noncommercial License 1.0.0](LICENSE). Bug reports and pull requests are
+welcome in the [issue tracker](https://github.com/blazewicz/GcodeVIewer/issues).
