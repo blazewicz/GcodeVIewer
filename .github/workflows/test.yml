@@ -23,7 +23,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/master' }}
       - run: just ci-lint
 
-  core:
+  shared:
     strategy:
       fail-fast: false
       matrix:
@@ -38,7 +38,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/master' }}
-      - run: just ci-core
+      - run: just ci-gcode
       - run: just ci-renderer
       - run: just ci-native
 
@@ -57,6 +57,19 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/master' }}
       - run: just ci-wasm
 
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v4
+        with:
+          just-version: '1'
+      - run: rustup toolchain install stable --profile minimal
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - run: just ci-native
+
   ci:
     if: always()
     needs: [lint, core, wasm]
@@ -66,10 +79,9 @@ jobs:
         run: |
           for result in \
             "${{ needs.lint.result }}" \
-            "${{ needs.core.result }}" \
-            "${{ needs.cli.result }}" \
+            "${{ needs.shared.result }}" \
             "${{ needs.wasm.result }}" \
-            "${{ needs.python.result }}"; do
+            "${{ needs.native.resul }}"; do
             if [ "$result" != "success" ]; then
               echo "job result: $result"
               exit 1

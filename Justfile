@@ -29,7 +29,7 @@ ci-lint:
     cargo clippy --locked --workspace --all-targets -- -D warnings
 
 # G-code interpreter tests.
-ci-core:
+ci-gcode:
     cargo test --locked -p gcode-viewer-gcode
 
 # Renderer crate: native lint plus host-side tests.
@@ -47,7 +47,7 @@ ci-wasm:
     cargo clippy --locked -p gcode-viewer-wasm --target wasm32-unknown-unknown --all-targets -- -D warnings
 
 # Full local mirror of .github/workflows/test.yml.
-ci: ci-lint ci-core ci-renderer ci-native ci-wasm
+ci: ci-lint ci-gcode ci-renderer ci-native ci-wasm
 
 # Install the wasm32 target needed by the renderer checks.
 wasm-target:
