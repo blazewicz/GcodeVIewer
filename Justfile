@@ -67,6 +67,11 @@ ui: wasm
     npm --prefix ui install
     npm --prefix ui run dev
 
+# Build the deployable UI bundle (WASM + static site) into ui/dist.
+ui-build: wasm
+    npm --prefix ui ci
+    npm --prefix ui run build
+
 # Open a G-code file in the native viewer window.
 view file:
     cargo run --release -p gcode-viewer-native -- {{file}}
