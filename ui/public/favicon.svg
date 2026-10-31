@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="GcodeViewer">
+  <rect width="64" height="64" rx="14" fill="#262c3a" />
+  <g fill="none" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M44 20 H20" stroke="#de4e38" />
+    <path d="M20 20 V44 H44 V28 H28" stroke="#f7f8fa" />
+    <path d="M28 28 V36" stroke="#24975c" />
+  </g>
+</svg>

@@ -1,0 +1,9 @@
+# Google and Bing only read robots.txt from the origin root
+# (https://blazewicz.github.io/), so crawlers ignore this file while the site
+# lives under the /GcodeVIewer/ project path. It is published ready for the
+# move to a custom domain.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://blazewicz.github.io/GcodeVIewer/sitemap.xml

@@ -40,6 +40,13 @@ jobs:
           cache: npm
           cache-dependency-path: ui/package-lock.json
       - run: just ui-build
+      - name: Serve the IndexNow key
+        env:
+          INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
+        run: |
+          if [ -n "$INDEXNOW_KEY" ]; then
+            printf '%s' "$INDEXNOW_KEY" > "ui/dist/$INDEXNOW_KEY.txt"
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -57,3 +64,15 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Ping IndexNow
+        continue-on-error: true
+        env:
+          INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
+        run: |
+          if [ -z "$INDEXNOW_KEY" ]; then
+            echo "INDEXNOW_KEY is not set; skipping the IndexNow ping."
+            exit 0
+          fi
+          curl -fsS https://api.indexnow.org/indexnow \
+            -H 'content-type: application/json; charset=utf-8' \
+            -d "{\"host\":\"blazewicz.github.io\",\"key\":\"$INDEXNOW_KEY\",\"keyLocation\":\"https://blazewicz.github.io/GcodeVIewer/$INDEXNOW_KEY.txt\",\"urlList\":[\"https://blazewicz.github.io/GcodeVIewer/\"]}"

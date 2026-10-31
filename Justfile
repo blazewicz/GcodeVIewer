@@ -1,4 +1,4 @@
-# GcodeWelder task runner. Run `just --list` to see all recipes.
+# GcodeViewer task runner. Run `just --list` to see all recipes.
 
 # Show available recipes.
 default:
@@ -46,8 +46,11 @@ ci-wasm:
     cargo clippy --locked -p gcode-viewer-renderer --target wasm32-unknown-unknown --all-targets -- -D warnings
     cargo clippy --locked -p gcode-viewer-wasm --target wasm32-unknown-unknown --all-targets -- -D warnings
 
+# UI bundle: WASM plus Vite build with the SEO metadata checks.
+ci-ui: ui-build
+
 # Full local mirror of .github/workflows/test.yml.
-ci: ci-lint ci-gcode ci-renderer ci-native ci-wasm
+ci: ci-lint ci-gcode ci-renderer ci-native ci-wasm ci-ui
 
 # Install the wasm32 target needed by the renderer checks.
 wasm-target:
@@ -67,10 +70,25 @@ ui: wasm
     npm --prefix ui install
     npm --prefix ui run dev
 
-# Build the deployable UI bundle (WASM + static site) into ui/dist.
-ui-build: wasm
+# Build the WASM binding and the Vite bundle into ui/dist.
+ui-bundle: wasm
     npm --prefix ui ci
     npm --prefix ui run build
+
+# Build the deployable UI bundle (WASM + static site) and verify its SEO metadata.
+ui-build: ui-bundle
+    npm --prefix ui run check:seo
+
+# Verify the built UI bundle's SEO metadata (ui-build runs this too).
+ui-seo-check:
+    npm --prefix ui run check:seo
+
+# Regenerate og.png and the PNG icons from the built UI; downloads Chromium on first run.
+og-image: ui-bundle
+    npm --prefix ui install --no-save playwright
+    npm --prefix ui exec -- playwright install chromium
+    npm --prefix ui run og-image
+    npm --prefix ui run check:seo
 
 # Open a G-code file in the native viewer window.
 view file:

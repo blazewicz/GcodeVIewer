@@ -45,6 +45,22 @@ requestAnimationFrame(frame);
 `just wasm-check` lints the renderer and binding for the wasm32 target, and
 `just wasm` builds the package into `ui/pkg` for the Vite app.
 
+## Site metadata
+
+The deployed UI at <https://blazewicz.github.io/GcodeVIewer/> carries its SEO
+metadata in `ui/index.html` (canonical URL, Open Graph and Twitter cards,
+`WebApplication` JSON-LD), `ui/public/sitemap.xml`, `ui/public/robots.txt` and
+`ui/public/favicon.svg`. The site URL appears in the first three;
+`just ui-build` runs `ui/scripts/check-seo.mjs`, which fails when they disagree,
+a required tag disappears or an image is missing.
+
+`ui/public/og.png` and the PNG icons are committed. Regenerate them from the
+built UI with `just og-image`, which downloads Chromium on the first run and
+falls back to a branded card when no WebGL is available; on Linux, Chromium may
+need its system packages first (`npx playwright install-deps chromium`). When
+the `INDEXNOW_KEY` repository secret is set, the deploy workflow publishes
+`<key>.txt` with the site and pings IndexNow for the new deployment.
+
 ## Native viewer
 
 `crates/native` is a tiny native host: `gcode-viewer <FILE>` opens a window and

@@ -1,4 +1,4 @@
-; GcodeWelder renderer demo: rapids, feeds, arcs, and a cubic spline.
+; GcodeViewer demo: rapids, feeds, arcs, and a cubic spline.
 G21
 G90
 M82
