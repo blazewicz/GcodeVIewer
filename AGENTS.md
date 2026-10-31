@@ -13,6 +13,7 @@ Currently supported G-code flavors:
 ```
 .github/         GitHub Actions CI config
 crates/gcode/    G-code interpreter
+crates/native/   Native window viewer (winit host)
 crates/renderer/ Platform-neutral wgpu renderer, shaders, camera and tessellation
 crates/wasm/     Thin WebAssembly binding around the renderer
 ui/              Browser UI
@@ -36,6 +37,9 @@ just fmt          # format Rust code
 just clippy       # lint Rust code
 just test         # run Rust tests
 
+# Native viewer
+just view FILE    # open a G-code file in the native viewer window
+
 # WASM and UI specific commands
 just wasm         # build the WASM binding package
 just wasm-check   # lint the renderer and WASM binding for wasm32
@@ -46,6 +50,7 @@ just ci           # every ci-* recipe below, mirroring .github/workflows/test.ym
 just ci-lint      # format + native clippy; no Python runtime needed
 just ci-core      # core library tests
 just ci-renderer  # native renderer lint and host-side tests
+just ci-native    # native viewer host-side tests
 just ci-wasm      # wasm32 clippy for the renderer and binding
 ```
 

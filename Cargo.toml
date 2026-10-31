@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/gcode", "crates/renderer", "crates/wasm"]
+members = ["crates/gcode", "crates/native", "crates/renderer", "crates/wasm"]
 resolver = "3"
 
 [workspace.package]
@@ -25,6 +25,9 @@ wasm-bindgen-futures = "0.4"
 web-sys = "0.3"
 wesl-core = "0.1"
 wgpu = "30"
+env_logger = "0.11"
+pollster = "0.4"
+winit = "0.30"
 
 [workspace.lints.clippy]
 all = "deny"

@@ -37,13 +37,17 @@ ci-renderer:
     cargo clippy --locked -p gcode-viewer-renderer --all-targets -- -D warnings
     cargo test --locked -p gcode-viewer-renderer
 
+# Native viewer: host-side tests.
+ci-native:
+    cargo test --locked -p gcode-viewer-native
+
 # WebAssembly bindings: wasm32 lint for the wrapper and renderer.
 ci-wasm:
     cargo clippy --locked -p gcode-viewer-renderer --target wasm32-unknown-unknown --all-targets -- -D warnings
     cargo clippy --locked -p gcode-viewer-wasm --target wasm32-unknown-unknown --all-targets -- -D warnings
 
 # Full local mirror of .github/workflows/test.yml.
-ci: ci-lint ci-core ci-renderer ci-wasm
+ci: ci-lint ci-core ci-renderer ci-native ci-wasm
 
 # Install the wasm32 target needed by the renderer checks.
 wasm-target:
@@ -62,3 +66,7 @@ wasm:
 ui: wasm
     npm --prefix ui install
     npm --prefix ui run dev
+
+# Open a G-code file in the native viewer window.
+view file:
+    cargo run --release -p gcode-viewer-native -- {{file}}

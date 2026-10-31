@@ -45,6 +45,36 @@ requestAnimationFrame(frame);
 `just wasm-check` lints the renderer and binding for the wasm32 target, and
 `just wasm` builds the package into `ui/pkg` for the Vite app.
 
+## Native viewer
+
+`crates/native` is a tiny native host: `gcode-viewer <FILE>` opens a window and
+renders the toolpath with the same platform-neutral renderer the browser uses.
+There is no chrome around the image, and files stream in chunks instead of
+being held in memory.
+
+```sh
+just view path/to/file.gcode
+# or
+cargo run --release -p gcode-viewer-native -- path/to/file.gcode
+```
+
+Large files are parsed with a debug build far more slowly than with a release
+build, so prefer `--release` (what `just view` uses) for real toolpaths.
+
+Left-drag pans, middle-drag or Ctrl+drag orbits, and the wheel zooms under the
+cursor. `F` fits the toolpath, `Up`/`Down` move the Z clip that hides everything
+above it (`Shift` for a fine step), `Z` resets the clip, and `Esc` quits. The
+window title shows the cut-off while the clip is active.
+
+Without a hardware graphics adapter the viewer falls back to software
+rasterization and says so at startup; every segment is then drawn on the CPU,
+so large toolpaths render slowly.
+
+On WSL2 the viewer selects Mesa's D3D12 driver, which reaches the Windows GPU
+through `/dev/dxg`; without that, Mesa's fallback can end at llvmpipe even on a
+machine with a GPU. Setting `GALLIUM_DRIVER` or `MESA_LOADER_DRIVER_OVERRIDE`
+yourself overrides the choice.
+
 ## Development
 
 ```sh
