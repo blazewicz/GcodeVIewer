@@ -81,7 +81,7 @@ jobs:
             "${{ needs.lint.result }}" \
             "${{ needs.shared.result }}" \
             "${{ needs.wasm.result }}" \
-            "${{ needs.native.resul }}"; do
+            "${{ needs.native.result }}"; do
             if [ "$result" != "success" ]; then
               echo "job result: $result"
               exit 1
