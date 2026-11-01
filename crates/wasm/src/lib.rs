@@ -7,6 +7,9 @@
 
 #![cfg(target_arch = "wasm32")]
 
+#[cfg(not(target_feature = "simd128"))]
+compile_error!("the WASM build requires `-C target-feature=+simd128`");
+
 use gcode_viewer_renderer::{
     PathStats as SharedPathStats, Renderer as SharedRenderer, RendererOptions,
 };

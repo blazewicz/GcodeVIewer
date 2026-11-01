@@ -1,4 +1,14 @@
 import init, { Renderer, type PathStats } from "../pkg/gcode_viewer_wasm.js";
+import simdProbe from "./simd-probe.wat";
+
+/**
+ * Whether this engine can instantiate the wasm module, which is built with the
+ * `simd128` target feature. Engines without SIMD reject the whole module, so
+ * this is checked before it is instantiated.
+ */
+function hasSimd(): boolean {
+  return WebAssembly.validate(simdProbe);
+}
 
 export interface LoadResult {
   moves: number;
@@ -47,6 +57,10 @@ function toLoadResult(stats: PathStats): LoadResult {
 }
 
 export async function createRenderer(canvas: HTMLCanvasElement): Promise<RendererApi> {
+  if (!hasSimd()) {
+    throw new Error("this browser has no WebAssembly SIMD support (needs Chrome 91+, Firefox 89+ or Safari 16.4+)");
+  }
+
   await init();
   const renderer = await Renderer.create(canvas);
 
