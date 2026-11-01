@@ -75,13 +75,19 @@ ui-bundle: wasm
     npm --prefix ui ci
     npm --prefix ui run build
 
-# Build the deployable UI bundle (WASM + static site) and verify its SEO metadata.
+# Build the deployable UI bundle (WASM + static site) and verify its SIMD
+# instructions and SEO metadata.
 ui-build: ui-bundle
+    npm --prefix ui run check:wasm-simd
     npm --prefix ui run check:seo
 
 # Verify the built UI bundle's SEO metadata (ui-build runs this too).
 ui-seo-check:
     npm --prefix ui run check:seo
+
+# Verify the built wasm binary uses SIMD instructions (ui-build runs this too).
+ui-simd-check:
+    npm --prefix ui run check:wasm-simd
 
 # Regenerate og.png and the PNG icons from the built UI; downloads Chromium on first run.
 og-image: ui-bundle
