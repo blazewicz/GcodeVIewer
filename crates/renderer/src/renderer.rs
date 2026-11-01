@@ -13,7 +13,7 @@
 //! renderer independent of the host's event model.
 
 use bytemuck::Pod;
-use glam::{Vec2, Vec3};
+use glam::{Vec2, Vec3A};
 use wgpu::util::DeviceExt;
 
 use crate::camera::Camera;
@@ -109,7 +109,7 @@ pub struct Renderer {
     /// Bounds of the feedrate colour scale, in mm/min.
     feed_min: f32,
     feed_max: f32,
-    bounds: Option<(Vec3, Vec3)>,
+    bounds: Option<(Vec3A, Vec3A)>,
     moves: usize,
     segments: usize,
     /// Whether the image changed since the last presented frame.
@@ -357,7 +357,7 @@ impl Renderer {
         let stats = load.stats();
         self.moves = stats.moves;
         self.segments = stats.segments;
-        self.bounds = stats.bounds;
+        self.bounds = stats.bounds.map(|(min, max)| (min.into(), max.into()));
         self.z_max = self.bounds.map(|(_, max)| max.z).unwrap_or(f32::INFINITY);
         (self.feed_min, self.feed_max) = stats.feed_range.unwrap_or((0.0, 1.0));
         self.needs_redraw = true;
@@ -585,7 +585,7 @@ impl Renderer {
             color_mode: u32::from(self.color_by_feed),
             feed_min: self.feed_min,
             feed_max: self.feed_max,
-            light_dir: self.camera.eye_direction().to_array(),
+            light_dir: self.camera.eye_direction().into(),
             extrusion_radius: self.extrusion_radius,
         };
 

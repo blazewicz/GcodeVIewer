@@ -4,11 +4,13 @@
 //! and zooms by changing pixels per millimetre. Projection is orthographic and
 //! depth-tested: view-space Z maps to the clip range through a fixed focus
 //! point and radius, so panning the target never pushes the scene out of the
-//! depth range. The math is pure so it can be tested on the host.
+//! depth range. The math is pure so it can be tested on the host, and the
+//! positions and basis vectors are `Vec3A`, which the wasm build lowers to
+//! SIMD lanes.
 
 use std::f32::consts::{FRAC_PI_2, TAU};
 
-use glam::{Mat3, Mat4, Vec2, Vec3};
+use glam::{Mat3A, Mat4, Vec2, Vec3A};
 
 /// Smallest and largest allowed zoom, in pixels per millimetre.
 const MIN_SCALE: f32 = 1e-4;
@@ -21,10 +23,10 @@ const DEFAULT_YAW: f32 = -FRAC_PI_2;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Camera {
     /// Orbit and pan center.
-    target: Vec3,
+    target: Vec3A,
     /// Scene center for the depth range. Panning moves only the target, so the
     /// scene always stays inside the clip volume.
-    focus: Vec3,
+    focus: Vec3A,
     /// Bounding-sphere radius of the scene.
     radius: f32,
     yaw: f32,
@@ -36,8 +38,8 @@ pub(crate) struct Camera {
 impl Camera {
     pub(crate) fn new() -> Self {
         Self {
-            target: Vec3::ZERO,
-            focus: Vec3::ZERO,
+            target: Vec3A::ZERO,
+            focus: Vec3A::ZERO,
             radius: 1.0,
             yaw: DEFAULT_YAW,
             pitch: MAX_PITCH,
@@ -52,7 +54,7 @@ impl Camera {
 
     /// Frames `min`..`max` with `margin` device pixels of padding and returns
     /// the view to its default orientation.
-    pub(crate) fn fit(&mut self, min: Vec3, max: Vec3, margin: f32) {
+    pub(crate) fn fit(&mut self, min: Vec3A, max: Vec3A, margin: f32) {
         self.target = (min + max) * 0.5;
         self.focus = self.target;
         self.radius = ((max - min) * 0.5).length().max(1e-6);
@@ -91,7 +93,7 @@ impl Camera {
     }
 
     /// The world point on the target plane under a device-pixel position.
-    pub(crate) fn world_at(&self, pixel: Vec2) -> Vec3 {
+    pub(crate) fn world_at(&self, pixel: Vec2) -> Vec3A {
         let (x, y, _) = self.basis();
         let view = (pixel - self.viewport * 0.5) / self.scale * Vec2::new(1.0, -1.0);
         self.target + x * view.x + y * view.y
@@ -108,29 +110,31 @@ impl Camera {
         let sy = 2.0 * self.scale / self.viewport.y;
         let depth = 0.5 / self.radius.max(1e-6);
 
-        let axes = Mat3::from_rows(x * sx, y * sy, z * -depth);
-        let translation = Vec3::new(
+        let axes = Mat3A::from_rows(x * sx, y * sy, z * -depth);
+        let translation = Vec3A::new(
             -sx * x.dot(self.target),
             -sy * y.dot(self.target),
             depth * z.dot(self.focus) + 0.5,
         );
 
-        Mat4::from_mat3_translation(axes, translation)
+        let mut view = Mat4::from_mat3a(axes);
+        view.w_axis = translation.extend(1.0);
+        view
     }
 
     /// The unit vector from the scene toward the eye, used to shade surfaces.
-    pub(crate) fn eye_direction(&self) -> Vec3 {
+    pub(crate) fn eye_direction(&self) -> Vec3A {
         self.basis().2
     }
 
     /// The camera axes as (right, up, toward the eye).
-    fn basis(&self) -> (Vec3, Vec3, Vec3) {
+    fn basis(&self) -> (Vec3A, Vec3A, Vec3A) {
         let (sy, cy) = self.yaw.sin_cos();
         let (sp, cp) = self.pitch.sin_cos();
 
-        let right = Vec3::new(-sy, cy, 0.0);
-        let up = Vec3::new(-cy * sp, -sy * sp, cp);
-        let eye = Vec3::new(cy * cp, sy * cp, sp);
+        let right = Vec3A::new(-sy, cy, 0.0);
+        let up = Vec3A::new(-cy * sp, -sy * sp, cp);
+        let eye = Vec3A::new(cy * cp, sy * cp, sp);
 
         (right, up, eye)
     }
@@ -138,7 +142,7 @@ impl Camera {
 
 #[cfg(test)]
 mod tests {
-    use glam::{Vec2, Vec3};
+    use glam::{Vec2, Vec3, Vec3A};
     use rstest::{fixture, rstest};
 
     use super::*;
@@ -154,7 +158,7 @@ mod tests {
     #[test]
     fn eye_direction_points_from_the_scene_toward_the_eye() {
         let mut camera = camera();
-        camera.fit(Vec3::ZERO, Vec3::new(100.0, 100.0, 10.0), 0.0);
+        camera.fit(Vec3A::ZERO, Vec3A::new(100.0, 100.0, 10.0), 0.0);
 
         // The default view looks down, so the eye sits above the scene.
         let eye = camera.eye_direction();
@@ -173,10 +177,10 @@ mod tests {
         let mut camera = camera();
 
         // when
-        camera.fit(Vec3::ZERO, Vec3::new(100.0, 50.0, 10.0), 20.0);
+        camera.fit(Vec3A::ZERO, Vec3A::new(100.0, 50.0, 10.0), 20.0);
 
         // then the target is the box center and the width fits the viewport
-        assert_eq!(camera.target, Vec3::new(50.0, 25.0, 5.0));
+        assert_eq!(camera.target, Vec3A::new(50.0, 25.0, 5.0));
         assert_eq!(camera.focus, camera.target);
         assert!((camera.scale - 7.6).abs() < 1e-3, "{}", camera.scale);
     }
@@ -184,7 +188,7 @@ mod tests {
     #[test]
     fn the_default_view_is_north_up_and_looks_down() {
         let mut camera = camera();
-        camera.fit(Vec3::ZERO, Vec3::new(100.0, 100.0, 10.0), 0.0);
+        camera.fit(Vec3A::ZERO, Vec3A::new(100.0, 100.0, 10.0), 0.0);
 
         let north = camera
             .view_projection()
@@ -197,7 +201,11 @@ mod tests {
     #[test]
     fn fit_keeps_a_smaller_bounds_inside_the_viewport() {
         let mut camera = camera();
-        camera.fit(Vec3::new(10.0, 10.0, 0.0), Vec3::new(11.0, 10.5, 0.5), 20.0);
+        camera.fit(
+            Vec3A::new(10.0, 10.0, 0.0),
+            Vec3A::new(11.0, 10.5, 0.5),
+            20.0,
+        );
 
         let corners = [
             Vec3::new(10.0, 10.0, 0.0),
@@ -217,7 +225,7 @@ mod tests {
     fn pan_follows_the_pointer(#[case] dx: f32, #[case] dy: f32) {
         // given
         let mut camera = camera();
-        camera.fit(Vec3::ZERO, Vec3::new(100.0, 100.0, 10.0), 0.0);
+        camera.fit(Vec3A::ZERO, Vec3A::new(100.0, 100.0, 10.0), 0.0);
         let pixel = Vec2::new(500.0, 200.0);
         let before = camera.world_at(pixel);
 
@@ -233,7 +241,7 @@ mod tests {
     fn pan_follows_the_pointer_in_an_orbited_view() {
         // given
         let mut camera = camera();
-        camera.fit(Vec3::ZERO, Vec3::new(100.0, 100.0, 10.0), 0.0);
+        camera.fit(Vec3A::ZERO, Vec3A::new(100.0, 100.0, 10.0), 0.0);
         camera.orbit(0.9, -0.6);
         let pixel = Vec2::new(500.0, 200.0);
         let before = camera.world_at(pixel);
@@ -250,7 +258,7 @@ mod tests {
     fn zoom_keeps_the_world_point_under_the_cursor() {
         // given
         let mut camera = camera();
-        camera.fit(Vec3::ZERO, Vec3::new(100.0, 100.0, 10.0), 0.0);
+        camera.fit(Vec3A::ZERO, Vec3A::new(100.0, 100.0, 10.0), 0.0);
         camera.orbit(0.4, -0.3);
         let cursor = Vec2::new(600.0, 150.0);
         let before = camera.world_at(cursor);
@@ -266,13 +274,17 @@ mod tests {
     #[test]
     fn world_at_inverts_the_projection() {
         let mut camera = camera();
-        camera.fit(Vec3::new(-10.0, 5.0, 0.0), Vec3::new(30.0, 25.0, 4.0), 0.0);
+        camera.fit(
+            Vec3A::new(-10.0, 5.0, 0.0),
+            Vec3A::new(30.0, 25.0, 4.0),
+            0.0,
+        );
         camera.orbit(0.7, -0.5);
         let pixel = Vec2::new(210.0, 430.0);
 
         let clip = camera
             .view_projection()
-            .project_point3(camera.world_at(pixel));
+            .project_point3(camera.world_at(pixel).to_vec3());
 
         // The viewport spans clip -1..1, so a pixel maps to
         // `pixel / (viewport / 2) - 1` on X and its negation on Y.
@@ -284,7 +296,7 @@ mod tests {
     #[test]
     fn orbit_keeps_the_target_fixed() {
         let mut camera = camera();
-        camera.fit(Vec3::ZERO, Vec3::new(100.0, 100.0, 10.0), 0.0);
+        camera.fit(Vec3A::ZERO, Vec3A::new(100.0, 100.0, 10.0), 0.0);
         let target = camera.target;
 
         camera.orbit(1.2, -0.8);
@@ -306,12 +318,14 @@ mod tests {
     #[test]
     fn the_focus_keeps_the_scene_inside_the_depth_range() {
         let mut camera = camera();
-        camera.fit(Vec3::ZERO, Vec3::new(100.0, 100.0, 10.0), 0.0);
+        camera.fit(Vec3A::ZERO, Vec3A::new(100.0, 100.0, 10.0), 0.0);
 
         // Pan far away from the scene; the depth range still covers it.
         camera.pan(Vec2::new(10_000.0, -8_000.0));
 
-        let clip = camera.view_projection().project_point3(camera.focus);
+        let clip = camera
+            .view_projection()
+            .project_point3(camera.focus.to_vec3());
         assert!((clip.z - 0.5).abs() < 1e-4, "{clip:?}");
     }
 }
