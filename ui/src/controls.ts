@@ -54,7 +54,7 @@ export function createControls(api: RendererApi): Controls {
       {
         type: "slider",
         id: "diameter",
-        label: "Extrusion diameter",
+        label: "Reference diameter",
         min: 0.05,
         max: 1,
         step: 0.05,

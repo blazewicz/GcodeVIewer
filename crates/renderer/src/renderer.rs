@@ -4,7 +4,8 @@
 //! window. G-code text is parsed through the core query API, flattened into
 //! segments, uploaded to instance buffers, and drawn: non-extruding moves as
 //! screen-space expanded quads, extruding moves as round tubes with conical
-//! caps and start sockets. A load can be fed in chunks through
+//! caps and start sockets, their width scaled by each move's flow rate. A load
+//! can be fed in chunks through
 //! [`Renderer::begin_load`], [`Renderer::feed_load`], and
 //! [`Renderer::end_load`], so the host never has to hold the whole file. The
 //! caller draws a frame with [`Renderer::render`] when
@@ -26,8 +27,16 @@ use crate::visibility::KindMask;
 /// Device-pixel padding kept around the toolpath when fitting the view.
 const FIT_MARGIN: f32 = 40.0;
 const DEFAULT_LINE_WIDTH: f32 = 1.6;
-/// Cross-section diameter of an extruding move in millimetres.
+/// Reference cross-section diameter of an extruding move in millimetres.
 const DEFAULT_EXTRUSION_DIAMETER: f32 = 0.2;
+/// Reference flow rate in millimetres of filament per millimetre of path,
+/// used when a file carries no measurable extrusion. Matches a 0.4 x 0.2 mm
+/// line on 1.75 mm filament, so such files draw at the reference diameter.
+const DEFAULT_FLOW_RATE: f32 = 0.033;
+/// Narrowest and widest multiples of the reference diameter a tube may take;
+/// clamps prime, wipe, and gap-fill outliers.
+const FLOW_SCALE_MIN: f32 = 0.25;
+const FLOW_SCALE_MAX: f32 = 4.0;
 /// Staged instances that trigger an upload. Keeps the host-side staging
 /// buffer small while leaving the draw loop with few vertex buffers.
 const INSTANCES_PER_BATCH: usize = 1 << 18;
@@ -101,7 +110,11 @@ pub struct Renderer {
     load: Option<Loader>,
     camera: Camera,
     line_width: f32,
+    /// Reference tube radius in millimetres.
     extrusion_radius: f32,
+    /// Median flow rate of the loaded file, in millimetres of filament per
+    /// millimetre of path. The reference diameter applies at this rate.
+    rate_ref: f32,
     z_max: f32,
     kind_mask: KindMask,
     /// Colour segments by feedrate instead of move kind.
@@ -256,6 +269,7 @@ impl Renderer {
             camera,
             line_width: DEFAULT_LINE_WIDTH,
             extrusion_radius: DEFAULT_EXTRUSION_DIAMETER * 0.5,
+            rate_ref: DEFAULT_FLOW_RATE,
             z_max: f32::INFINITY,
             kind_mask: KindMask::DEFAULT,
             color_by_feed: false,
@@ -295,6 +309,7 @@ impl Renderer {
         self.bounds = None;
         self.feed_min = 0.0;
         self.feed_max = 1.0;
+        self.rate_ref = DEFAULT_FLOW_RATE;
     }
 
     /// Feeds the next chunk of G-code text into the active load, flattening
@@ -360,6 +375,7 @@ impl Renderer {
         self.bounds = stats.bounds;
         self.z_max = self.bounds.map(|(_, max)| max.z).unwrap_or(f32::INFINITY);
         (self.feed_min, self.feed_max) = stats.feed_range.unwrap_or((0.0, 1.0));
+        self.rate_ref = stats.rate_ref.unwrap_or(DEFAULT_FLOW_RATE);
         self.needs_redraw = true;
 
         self.fit();
@@ -531,9 +547,10 @@ impl Renderer {
         self.needs_redraw = true;
     }
 
-    /// Sets the cross-section diameter of extruding moves in millimetres. The
-    /// diameter is physical, so print lines keep their size relative to the
-    /// toolpath while zooming.
+    /// Sets the reference cross-section diameter of extruding moves in
+    /// millimetres. A move's tube scales this width by its flow rate relative
+    /// to the file's median, so the reference is physical and print lines
+    /// keep their size relative to the toolpath while zooming.
     pub fn set_extrusion_diameter(&mut self, diameter: f32) {
         self.extrusion_radius = diameter.clamp(0.01, 10.0) * 0.5;
         self.needs_redraw = true;
@@ -576,6 +593,7 @@ impl Renderer {
     }
 
     fn write_camera(&self) {
+        let light_dir = self.camera.eye_direction();
         let uniforms = Uniforms {
             view_proj: self.camera.view_projection().to_cols_array(),
             viewport: [self.config.width as f32, self.config.height as f32],
@@ -585,8 +603,13 @@ impl Renderer {
             color_mode: u32::from(self.color_by_feed),
             feed_min: self.feed_min,
             feed_max: self.feed_max,
-            light_dir: self.camera.eye_direction().to_array(),
-            extrusion_radius: self.extrusion_radius,
+            light_dir: [light_dir.x, light_dir.y, light_dir.z, 0.0],
+            extrusion: [
+                self.extrusion_radius,
+                self.rate_ref,
+                FLOW_SCALE_MIN,
+                FLOW_SCALE_MAX,
+            ],
         };
 
         self.queue

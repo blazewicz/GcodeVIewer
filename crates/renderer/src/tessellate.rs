@@ -7,8 +7,9 @@
 //! orbit the toolpath in three dimensions, and carry their move kind so the
 //! shader can colour rapids, feeds, arcs, and splines separately. Segments also
 //! record whether the move deposits material, which the renderer uses to choose
-//! between a thin line and a round tube, and the active feedrate, which the
-//! shader maps onto a colour scale.
+//! between a thin line and a round tube, the extrusion rate per millimetre of
+//! path, which sizes the tube, and the active feedrate, which the shader maps
+//! onto a colour scale.
 
 use glam::Vec3;
 
@@ -54,6 +55,11 @@ pub(crate) struct Segment {
     pub(crate) feed: Option<f32>,
     /// Whether the move deposits material; the renderer draws these as tubes.
     pub(crate) extruding: bool,
+    /// Extrusion per millimetre of the flattened path, in millimetres of
+    /// filament per millimetre of travel. `None` when the move deposits no
+    /// material or its extrusion delta is unknown; the renderer draws such
+    /// tubes at the reference width.
+    pub(crate) rate: Option<f32>,
     /// Whether `a` is the start of its move rather than an interior joint of a
     /// flattened curve. The renderer starts the tube with a socket there.
     pub(crate) start_cap: bool,
@@ -72,6 +78,11 @@ pub(crate) struct Segment {
 /// any negative value is unambiguous. A host test pins the shader's copy.
 pub(crate) const NO_FEED: f32 = -1.0;
 
+/// Flow-rate sentinel for extruding moves without a measurable extrusion
+/// delta. Measured rates are positive, and the shader treats a non-positive
+/// rate as unknown, so any negative value is unambiguous.
+pub(crate) const NO_RATE: f32 = -1.0;
+
 /// The feedrate bounds across all segments, or `None` when no segment carries
 /// one. Segments without a feedrate are excluded from the range.
 pub(crate) fn feed_range(segments: &[Segment]) -> Option<(f32, f32)> {
@@ -89,22 +100,29 @@ pub(crate) fn feed_range(segments: &[Segment]) -> Option<(f32, f32)> {
 }
 
 /// Flattens every record with known endpoints, appending to `out` while fewer
-/// than `remaining` segments have been produced. Returns `false` when the
-/// limit stopped the flattening, so the caller knows later records were
-/// dropped.
-pub(crate) fn extend(records: &[MotionRecord], out: &mut Vec<Segment>, remaining: usize) -> bool {
+/// than `remaining` segments have been produced. Extruding moves with a known
+/// extrusion delta also append their flow rate to `rates`, one entry per move
+/// rather than per flattened piece, so a long curve cannot skew a median of
+/// them. Returns `false` when the limit stopped the flattening, so the caller
+/// knows later records were dropped.
+pub(crate) fn extend(
+    records: &[MotionRecord],
+    out: &mut Vec<Segment>,
+    rates: &mut Vec<f32>,
+    remaining: usize,
+) -> bool {
     for record in records {
         if out.len() >= remaining {
             return false;
         }
 
-        push_record(record, out);
+        push_record(record, out, rates);
     }
 
     true
 }
 
-fn push_record(record: &MotionRecord, out: &mut Vec<Segment>) {
+fn push_record(record: &MotionRecord, out: &mut Vec<Segment>, rates: &mut Vec<f32>) {
     let (Some(start), Some(end)) = (record.start, record.end) else {
         return;
     };
@@ -126,11 +144,18 @@ fn push_record(record: &MotionRecord, out: &mut Vec<Segment>) {
         );
     }
 
-    // Every piece shares the move's highest Z so the Z limit hides or shows
-    // the move as a unit instead of cutting it at the boundary.
+    // Every piece of a move shares the move's highest Z, its flow rate, and
+    // the move-level caps. The Z limit hides or shows the move as a unit
+    // instead of cutting it at the boundary.
     let move_z_max = start.z.max(end.z) as f32;
+    let rate = flow_rate(record, extruding, &out[first..]);
     for segment in &mut out[first..] {
         segment.move_z_max = move_z_max;
+        segment.rate = rate;
+    }
+
+    if let Some(rate) = rate {
+        rates.push(rate);
     }
 
     // Only the first and last flattened pieces border the move itself; the
@@ -141,6 +166,24 @@ fn push_record(record: &MotionRecord, out: &mut Vec<Segment>) {
         let last = out.len() - 1;
         out[last].end_cap = true;
     }
+}
+
+/// Extrusion per millimetre of the move's flattened path. The length is
+/// summed from the emitted pieces, so a curve measures its polyline rather
+/// than its chord. `None` when the move deposits no material or its extrusion
+/// delta is unknown.
+fn flow_rate(record: &MotionRecord, extruding: bool, pieces: &[Segment]) -> Option<f32> {
+    if !extruding {
+        return None;
+    }
+
+    let extrusion = record.extrusion?;
+    let length: f64 = pieces
+        .iter()
+        .map(|segment| (segment.b - segment.a).length() as f64)
+        .sum();
+
+    (length > 0.0).then(|| (extrusion / length) as f32)
 }
 
 /// Whether the move pushes filament. A rapid never does. A non-rapid move does
@@ -170,6 +213,7 @@ fn push_segment(
         kind,
         feed,
         extruding,
+        rate: None,
         start_cap: false,
         end_cap: false,
         move_z_max: a.z.max(b.z),
@@ -186,7 +230,7 @@ mod tests {
     /// Flattens without a practical segment limit.
     fn segments(records: &[MotionRecord]) -> Vec<Segment> {
         let mut out = Vec::new();
-        extend(records, &mut out, MAX_SEGMENTS);
+        extend(records, &mut out, &mut Vec::new(), MAX_SEGMENTS);
         out
     }
 
@@ -239,6 +283,7 @@ mod tests {
         let segments = segments(&records);
 
         // then
+        let length = Vec3::new(3.0, 4.0, 0.5).length() as f64;
         assert_eq!(
             segments,
             vec![Segment {
@@ -247,6 +292,7 @@ mod tests {
                 kind: expected,
                 feed: Some(1200.0),
                 extruding,
+                rate: extruding.then(|| (1.0 / length) as f32),
                 start_cap: capped,
                 end_cap: capped,
                 move_z_max: 0.5,
@@ -272,6 +318,20 @@ mod tests {
         assert_eq!(segments[0].extruding, extruding);
         assert_eq!(segments[0].start_cap, extruding);
         assert_eq!(segments[0].end_cap, extruding);
+    }
+
+    #[rstest]
+    #[case::travel(Some(0.0))]
+    #[case::retract(Some(-1.0))]
+    #[case::unknown_origin(None)]
+    fn a_move_without_a_measurable_flow_carries_no_rate(#[case] extrusion: Option<f64>) {
+        let mut record = record(MoveKind::Feed, None, DVec3::ZERO, DVec3::new(1.0, 0.0, 0.0));
+        record.extrusion = extrusion;
+
+        let segments = segments(&[record]);
+
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].rate, None);
     }
 
     #[test]
@@ -383,6 +443,13 @@ mod tests {
     }
 
     #[test]
+    fn the_unknown_rate_sentinel_is_not_a_measured_rate() {
+        // The shader draws non-positive rates at the reference width, so the
+        // sentinel must never collide with a measured rate.
+        const { assert!(NO_RATE < 0.0) };
+    }
+
+    #[test]
     fn every_piece_of_an_extruding_arc_is_a_tube() {
         let records = [arc(
             false,
@@ -397,6 +464,34 @@ mod tests {
 
         assert!(segments.len() > 1);
         assert!(segments.iter().all(|s| s.extruding));
+    }
+
+    #[test]
+    fn every_piece_of_an_extruding_arc_carries_the_moves_flow_rate() {
+        let records = [arc(
+            false,
+            -20.0,
+            0.0,
+            None,
+            DVec3::new(20.0, 0.0, 0.0),
+            DVec3::new(0.0, 20.0, 0.0),
+        )];
+
+        let segments = segments(&records);
+
+        assert!(segments.len() > 1);
+        // The rate is measured against the flattened polyline, so
+        // reconstructing it from the pieces yields the move's rate.
+        let path: f64 = segments
+            .iter()
+            .map(|segment| (segment.b - segment.a).length() as f64)
+            .sum();
+        let expected = (1.0 / path) as f32;
+        assert!(
+            segments
+                .iter()
+                .all(|segment| segment.rate == Some(expected))
+        );
     }
 
     #[test]
@@ -485,7 +580,7 @@ mod tests {
 
         let mut out = Vec::new();
 
-        assert!(extend(&records, &mut out, 1));
+        assert!(extend(&records, &mut out, &mut Vec::new(), 1));
         assert_eq!(out.len(), 1);
     }
 
@@ -503,7 +598,38 @@ mod tests {
 
         let mut out = Vec::new();
 
-        assert!(!extend(&records, &mut out, 1));
+        assert!(!extend(&records, &mut out, &mut Vec::new(), 1));
         assert_eq!(out.len(), 1);
+    }
+
+    #[test]
+    fn extend_reports_one_rate_per_extruding_move() {
+        // The linear move and the arc extrude; the rapid does not. The arc
+        // flattens to many pieces but still contributes one rate.
+        let records = [
+            record(MoveKind::Feed, None, DVec3::ZERO, DVec3::new(1.0, 0.0, 0.0)),
+            record(
+                MoveKind::Rapid,
+                None,
+                DVec3::new(1.0, 0.0, 0.0),
+                DVec3::new(2.0, 0.0, 0.0),
+            ),
+            arc(
+                false,
+                -20.0,
+                0.0,
+                None,
+                DVec3::new(20.0, 0.0, 0.0),
+                DVec3::new(0.0, 20.0, 0.0),
+            ),
+        ];
+        let mut out = Vec::new();
+        let mut rates = Vec::new();
+
+        assert!(extend(&records, &mut out, &mut rates, MAX_SEGMENTS));
+
+        assert!(out.len() > 3, "the arc flattens to many pieces");
+        assert_eq!(rates.len(), 2);
+        assert!(rates.iter().all(|&rate| rate > 0.0));
     }
 }

@@ -12,6 +12,15 @@ use gcode_viewer_gcode::{MotionRecord, Scanner};
 
 use crate::tessellate::{self, MAX_SEGMENTS, Segment};
 
+/// Upper end of the flow-rate histogram, in millimetres of filament per
+/// millimetre of path. Typical prints run near 0.03, so the range leaves room
+/// for over-extrusion; anything above it shares the top bucket.
+const RATE_RANGE: f32 = 0.5;
+/// Buckets in the flow-rate histogram. The median picks a bucket midpoint, so
+/// more buckets narrow the reference; 1024 keeps it within well under a
+/// percent of a typical rate.
+const RATE_BUCKETS: usize = 1024;
+
 /// The running totals of one load, taken once the load finished.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct LoadStats {
@@ -23,6 +32,10 @@ pub(crate) struct LoadStats {
     pub(crate) bounds: Option<(Vec3, Vec3)>,
     /// Lowest and highest known feedrate across the segments, in mm/min.
     pub(crate) feed_range: Option<(f32, f32)>,
+    /// Median rate of the file's measurable extruding moves, in millimetres of
+    /// filament per millimetre of path. `None` when no move has a known
+    /// extrusion delta, so the renderer falls back to its default reference.
+    pub(crate) rate_ref: Option<f32>,
 }
 
 /// Accumulates one load fed in chunks.
@@ -37,6 +50,10 @@ pub(crate) struct Loader {
     records: Vec<MotionRecord>,
     /// Segments of the chunk being processed, reused across feeds.
     segments: Vec<Segment>,
+    /// Flow rates of the chunk's extruding moves, reused across feeds.
+    rates: Vec<f32>,
+    /// Moves per flow-rate bucket across the whole load.
+    histogram: [u32; RATE_BUCKETS],
     stats: LoadStats,
     /// Whether the global segment cap stopped the flattening.
     capped: bool,
@@ -48,11 +65,14 @@ impl Loader {
             scanner: Scanner::new(),
             records: Vec::new(),
             segments: Vec::new(),
+            rates: Vec::new(),
+            histogram: [0; RATE_BUCKETS],
             stats: LoadStats {
                 moves: 0,
                 segments: 0,
                 bounds: None,
                 feed_range: None,
+                rate_ref: None,
             },
             capped: false,
         }
@@ -75,7 +95,10 @@ impl Loader {
     }
 
     pub(crate) fn stats(&self) -> LoadStats {
-        self.stats
+        LoadStats {
+            rate_ref: self.rate_reference(),
+            ..self.stats
+        }
     }
 
     /// Flattens the records of the current chunk and folds everything into
@@ -85,15 +108,22 @@ impl Loader {
         self.extend_bounds();
 
         self.segments.clear();
+        self.rates.clear();
         if !self.capped {
             let remaining = MAX_SEGMENTS.saturating_sub(self.stats.segments);
 
-            if !tessellate::extend(&self.records, &mut self.segments, remaining) {
+            if !tessellate::extend(
+                &self.records,
+                &mut self.segments,
+                &mut self.rates,
+                remaining,
+            ) {
                 self.capped = true;
                 log::warn!("segment cap reached; remaining moves are not rendered");
             }
         }
 
+        self.fold_rates();
         self.stats.segments += self.segments.len();
 
         if let Some((min, max)) = tessellate::feed_range(&self.segments) {
@@ -122,6 +152,44 @@ impl Loader {
             });
         }
     }
+
+    /// Folds the chunk's move rates into the histogram. One count per move,
+    /// not per flattened piece, so long curves cannot outweigh straight moves.
+    fn fold_rates(&mut self) {
+        for &rate in &self.rates {
+            let bucket = rate_bucket(rate);
+            self.histogram[bucket] += 1;
+        }
+    }
+
+    /// Midpoint of the median histogram bucket, or `None` when no move carried
+    /// a measurable rate.
+    fn rate_reference(&self) -> Option<f32> {
+        let total: u32 = self.histogram.iter().sum();
+
+        if total == 0 {
+            return None;
+        }
+
+        let mut seen = 0;
+        for (index, &count) in self.histogram.iter().enumerate() {
+            seen += count;
+
+            if seen >= total.div_ceil(2) {
+                let midpoint = (index as f32 + 0.5) / RATE_BUCKETS as f32 * RATE_RANGE;
+                return Some(midpoint);
+            }
+        }
+
+        unreachable!("the cumulative count of a non-empty histogram reaches the median")
+    }
+}
+
+/// Index of `rate` in the histogram; rates past the range share the top
+/// bucket.
+fn rate_bucket(rate: f32) -> usize {
+    let scaled = rate / RATE_RANGE * RATE_BUCKETS as f32;
+    (scaled as usize).min(RATE_BUCKETS - 1)
 }
 
 #[cfg(test)]
@@ -247,5 +315,67 @@ mod tests {
         assert_eq!(loader.stats().moves, 1);
         assert_eq!(loader.stats().segments, 0);
         assert!(segments.is_empty());
+    }
+
+    #[test]
+    fn the_reference_rate_is_the_median_of_the_files_flows() {
+        // given three moves at 0.04 mm/mm and one over-extruded at 0.2 mm/mm
+        let source = indoc! {"
+            G21
+            G90
+            M82
+            G92 X0 Y0 Z0 E0
+            G1 F1200
+            G1 X1 Z0.2 E0.04
+            G1 X2 Z0.2 E0.08
+            G1 X3 Z0.2 E0.12
+            G1 X4 Z0.2 E0.32
+        "};
+        let mut loader = Loader::new();
+
+        loader.feed(source);
+        loader.finish();
+
+        // then the outlier does not move the reference
+        let rate = loader.stats().rate_ref.expect("the moves carry rates");
+        assert!((rate - 0.04).abs() < 0.001, "unexpected rate {rate}");
+    }
+
+    #[test]
+    fn the_reference_rate_counts_moves_not_flattened_pieces() {
+        // given one slow arc that flattens to many pieces and three straight
+        // moves at eight times its rate
+        let source = indoc! {"
+            G21
+            G90
+            M82
+            G92 X20 Y0 Z0 E0
+            G1 F1200
+            G3 X0 Y20 Z0.2 I-20 J0 E0.31416
+            G1 X0 Y21 Z0.2 E0.39416
+            G1 X0 Y22 Z0.2 E0.47416
+            G1 X0 Y23 Z0.2 E0.55416
+        "};
+        let mut loader = Loader::new();
+
+        let segments = loader.feed(source).to_vec();
+        loader.finish();
+
+        // then the arc's many pieces do not outweigh the straight moves
+        assert!(segments.len() > 4, "the arc flattens to many pieces");
+        let rate = loader.stats().rate_ref.expect("the moves carry rates");
+        assert!((rate - 0.08).abs() < 0.001, "unexpected rate {rate}");
+    }
+
+    #[rstest]
+    #[case::no_extrusion_words("G21\nG90\nM82\nG92 X0 Y0 Z0 E0\nG1 F1200\nG1 X10 Z0.2\n")]
+    #[case::unknown_absolute_origin("G21\nG90\nG1 X10 Z0.2 E1\n")]
+    fn a_file_without_measurable_flows_has_no_reference_rate(#[case] source: &str) {
+        let mut loader = Loader::new();
+
+        loader.feed(source);
+        loader.finish();
+
+        assert_eq!(loader.stats().rate_ref, None);
     }
 }

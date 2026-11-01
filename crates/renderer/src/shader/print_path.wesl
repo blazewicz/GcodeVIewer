@@ -78,7 +78,12 @@ fn print_path_vertex(input: PathInput, index: u32) -> PrintPathOutput {
     let segment = input.end - input.start;
     let length = max(length(segment), 1e-6);
     let axis = segment / length;
-    let radius = uniforms.extrusion_radius;
+
+    // Flow-matched width: a measured rate scales the reference radius, clamped
+    // so prime and wipe moves cannot dominate; a move without a measurable
+    // delta draws at the reference radius.
+    let scale = select(1.0, input.rate / uniforms.extrusion.y, input.rate > 0.0);
+    let radius = uniforms.extrusion.x * clamp(scale, uniforms.extrusion.z, uniforms.extrusion.w);
 
     // A cone never reaches deeper than its segment. Interior cones may poke
     // into the following segment's socket; move-final cones stay within their
