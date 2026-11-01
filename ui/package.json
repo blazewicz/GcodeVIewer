@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "check:seo": "node scripts/check-seo.mjs",
+    "check:wasm-simd": "node scripts/check-wasm-simd.mjs",
     "og-image": "node scripts/og-image.mjs"
   },
   "devDependencies": {
