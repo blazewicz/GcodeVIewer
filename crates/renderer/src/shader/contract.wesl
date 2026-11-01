@@ -11,10 +11,13 @@ struct Uniforms {
     // Feedrates mapped onto the ends of the colour scale, in mm/min.
     feed_min: f32,
     feed_max: f32,
-    // Unit vector from the scene toward the eye, used to shade print paths.
-    light_dir: vec3f,
-    // Radius of an extruding move in millimetres.
-    extrusion_radius: f32,
+    // Unit vector from the scene toward the eye; `w` is unused padding that
+    // keeps the uniform block 16-byte aligned.
+    light_dir: vec4f,
+    // Tube sizing: `x` reference radius in millimetres, `y` reference flow
+    // rate in mm of filament per mm of path, `z` and `w` the multiples of the
+    // reference radius a tube may span.
+    extrusion: vec4f,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -31,4 +34,7 @@ struct PathInput {
     @location(4) feed: f32,
     // Highest Z of the whole move; the Z limit hides moves whole.
     @location(5) move_z_max: f32,
+    // Extrusion per millimetre of path. Non-positive when the move's delta is
+    // unknown, which draws at the reference radius.
+    @location(6) rate: f32,
 };

@@ -188,9 +188,10 @@ impl Renderer {
         self.inner.set_line_width(width as f32);
     }
 
-    /// Sets the cross-section diameter of extruding moves in millimetres. The
-    /// diameter is physical, so print lines keep their size relative to the
-    /// toolpath while zooming.
+    /// Sets the reference cross-section diameter of extruding moves in
+    /// millimetres. A move's tube scales this width by its flow rate relative
+    /// to the file's median, so the reference is physical and print lines
+    /// keep their size relative to the toolpath while zooming.
     pub fn set_extrusion_diameter(&mut self, diameter: f64) {
         self.inner.set_extrusion_diameter(diameter as f32);
     }

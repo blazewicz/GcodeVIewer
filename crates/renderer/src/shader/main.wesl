@@ -42,7 +42,7 @@ fn fs_print_path(input: PrintPathOutput) -> @location(0) vec4f {
     // Camera-relative diffuse light: the lit side follows the view, so the
     // cross-section reads as round from every orbit angle.
     let normal = normalize(input.normal);
-    let light = normalize(uniforms.light_dir);
+    let light = normalize(uniforms.light_dir.xyz);
     let shade = 0.45 + 0.55 * max(dot(normal, light), 0.0);
 
     return vec4f(input.color.rgb * shade, input.color.a);
