@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "typescript": "^5",
-    "vite": "^7"
+    "vite": "^7",
+    "wabt": "^1.0.39"
   }
 }

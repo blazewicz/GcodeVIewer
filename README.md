@@ -26,7 +26,8 @@ install, and your files are never uploaded.
 - Files are read and parsed in chunks, so large G-code files open without freezing
   the page.
 
-Requires a browser with WebAssembly and WebGPU or WebGL 2.
+Requires a browser with WebAssembly SIMD (Chrome 91+, Firefox 89+, Safari 16.4+)
+and WebGPU or WebGL 2.
 
 ## Desktop viewer
 

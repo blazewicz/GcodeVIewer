@@ -1,0 +1,6 @@
+# The web build is compiled with WebAssembly SIMD: LLVM vectorizes with it and
+# glam switches to its simd128 paths. Engines without SIMD reject the whole
+# module, so the UI probes for it before instantiating and reports unsupported
+# browsers instead of failing with a link error.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128"]
