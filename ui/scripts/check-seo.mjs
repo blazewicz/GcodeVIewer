@@ -131,6 +131,8 @@ if (jsonLd) {
     check(data.url === SITE_URL, "JSON-LD url does not match the canonical URL");
     check(data.description === description, "JSON-LD description does not match the meta description");
     check(data.screenshot === `${SITE_URL}og.png`, "JSON-LD screenshot does not point at og.png");
+    check(String(data.browserRequirements ?? "").includes("SIMD"), "JSON-LD browserRequirements should require WebAssembly SIMD");
+    check(String(data.browserRequirements ?? "").includes("WebGPU or WebGL 2"), "JSON-LD browserRequirements should require WebGPU or WebGL 2");
   }
 }
 
